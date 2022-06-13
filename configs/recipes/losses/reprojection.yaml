@@ -7,3 +7,20 @@ default:
         file: PhotometricLoss
         weight: 1.0
         alpha: 0.85
+
+fsm:
+    file: MultiCamPhotometricLoss
+    num_scales: 4
+    ssim_loss_weight: 0.85
+    occ_reg_weight: 0.1
+    smooth_loss_weight: 0.1
+    C1: 0.0001
+    C2: 0.0009
+    photometric_reduce_op: min
+    disp_norm: True
+    clip_loss: 0.5
+    progressive_scaling: 0.0
+    padding_mode: zeros
+    automask_loss: True
+    weight: 1.0
+    alpha: 0.85

@@ -1,0 +1,37 @@
+wrapper:
+    recipe: wrapper|default
+arch:
+    model:
+        file: depth/FSMModel
+    networks:
+        depth:
+            recipe: networks/focal_depth_res_net|fsm_ddad
+        pose:
+            recipe: networks/conv_pose_net|default
+    losses:
+        reprojection:
+            recipe: losses/reprojection|fsm
+        smoothness:
+            recipe: losses/smoothness|default
+evaluation:
+    depth:
+        recipe: evaluation/depth|ddad_resize
+optimizers:
+    depth:
+        recipe: optimizers|adam_20_05
+    pose:
+        recipe: optimizers|adam_20_05
+datasets:
+    train:
+        recipe: datasets/ddad|train_selfsup_6cams
+        labels: [depth, pose]
+    validation:
+        recipe: datasets/ddad|validation_6cams
+        labels: [depth, pose]
+wandb:
+    recipe: wandb|default
+    project: vidar_panodepth_baselines
+    tags: ['fsm', '220615']
+
+# save:
+#     recipe: save|depth_splitname

@@ -28,4 +28,6 @@ datasets:
         recipe: datasets/ddad_tiny|train_selfsup_front
     validation:
         recipe: datasets/ddad_tiny|validation_front
-
+wandb:
+    recipe: wandb|default
+    project: vidar_panodepth_220610_overfit

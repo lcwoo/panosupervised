@@ -1,5 +1,5 @@
 default:
-    folder: /data/vidar/wandb
-    entity: tri
-    project: vidar
+    folder: /data/disk/logs/wandb
+    entity: soonminh129
+    project: vidar_panodepth_220610
     num_validation_logs: 5

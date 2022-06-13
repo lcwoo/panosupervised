@@ -1,8 +1,8 @@
 default:
-    folder: /data/vidar/checkpoints
-    s3_bucket: miru-us-east-1/vidar/checkpoints
+    folder: /data/disk/logs/checkpoints
+    s3_bucket: soonminh-checkpoints
     save_code: True
     keep_top: 5
 default_local:
-    folder: /data/vidar/checkpoints
+    folder: /data/disk/logs/checkpoints
     keep_top: 5

@@ -100,7 +100,6 @@ class FSMModel(BaseModel):
         stereo_context = True
         gt_pose = False
 
-        self.multicam_loss = MultiCamPhotometricLoss(**kwargs)
         self.pairs = pairs
         self.stereo_weight = stereo_weight
         self.gt_pose = gt_pose
@@ -170,6 +169,8 @@ class FSMModel(BaseModel):
         batch = new_batch
 
         if self.training:
+            # TODO(sohwang): hard constraint for batch_size == 1 ??
+            # TODO(sohwang): also, this assumes that the network is shared across all cameras
             batch['rgb'] = batch['rgb'][0]
             batch['rgb_context'] = [b[0] for b in batch['rgb_context']]
             batch['pose'] = batch['pose'][0]
@@ -179,6 +180,14 @@ class FSMModel(BaseModel):
         if self.networks['depth'] is not None:
             output_self_sup = self.forward2(batch)
             depth = inv2depth(output_self_sup['inv_depths'])
+
+            ## DEBUG
+            # from vidar.utils.write import write_image
+            # from vidar.utils.viz import viz_depth
+            # filename = '/data/storage/logs/save'
+            # for j in range(depth[0].shape[1]):
+            #     write_image('%s/cam_%d.png' % (filename, j),
+            #     np.hstack([batch['rgb'][0, j].permute(1, 2, 0).cpu().numpy(), viz_depth(depth[0][0, j])]))
         else:
             output_self_sup = {}
             depth = batch['depth']
@@ -246,7 +255,7 @@ class FSMModel(BaseModel):
         outputs = []
 
         for tgt in range(n_tgt):
-            output = self.multicam_loss(
+            output = self.losses['reprojection'](
                 rgb_i[tgt], rgb_context_i[tgt], inv_depth_i[tgt],
                 cam_i[tgt], cam_context_i[tgt], with_mask=mono_masks[tgt])
             if not torch.isnan(output['loss']):
@@ -272,7 +281,7 @@ class FSMModel(BaseModel):
                                 stereo_masks[tgt][i][j][k][:, h_fn:] = 0
 
             for k, (tgt, src) in enumerate(self.pairs):
-                output = self.multicam_loss(
+                output = self.losses['reprojection'](
                     rgb_i[tgt], [rgb_i[src]], inv_depth_i[tgt],
                     cam_i[tgt], [cam_i[src]], with_mask=stereo_masks[k], automask=False)
                 if not torch.isnan(output['loss']):
@@ -295,7 +304,7 @@ class FSMModel(BaseModel):
                             stereo_masks[tgt][i][j][k][:, h_fn:] = 0
 
             for k, (tgt, src) in enumerate(self.pairs):
-                output = self.multicam_loss(
+                output = self.losses['reprojection'](
                     rgb_i[tgt], [rgb_i[src]] + rgb_context_i[src], inv_depth_i[tgt],
                     cam_i[tgt], [cam_i[src]] + cam_context_i[src], with_mask=stereo_masks[k], automask=False)
                 if not torch.isnan(output['loss']):

@@ -10,8 +10,8 @@ from vidar.utils.types import is_list, is_double_list
 
 
 class MultiCamPhotometricLoss(MultiViewPhotometricLoss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, cfg):
+        super().__init__(cfg)
         # Large value for loss masking
         self.inf = 999999
         self.align_corners = True

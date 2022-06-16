@@ -131,21 +131,19 @@ class MultiViewPhotometricLoss(BaseLoss, ABC):
     kwargs : dict
         Extra parameters
     """
-    def __init__(self, num_scales=4, ssim_loss_weight=0.85, occ_reg_weight=0.1, smooth_loss_weight=0.1,
-                 C1=1e-4, C2=9e-4, photometric_reduce_op='mean', disp_norm=True, clip_loss=0.5,
-                 progressive_scaling=0.0, padding_mode='zeros', automask_loss=False, **kwargs):
-        super().__init__()
-        self.n = num_scales
-        self.ssim_loss_weight = ssim_loss_weight
-        self.occ_reg_weight = occ_reg_weight
-        self.smooth_loss_weight = smooth_loss_weight
-        self.C1 = C1
-        self.C2 = C2
-        self.photometric_reduce_op = photometric_reduce_op
-        self.disp_norm = disp_norm
-        self.clip_loss = clip_loss
-        self.padding_mode = padding_mode
-        self.automask_loss = automask_loss
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.n = cfg.num_scales
+        self.ssim_loss_weight = cfg.ssim_loss_weight
+        self.occ_reg_weight = cfg.occ_reg_weight
+        self.smooth_loss_weight = cfg.smooth_loss_weight
+        self.C1 = cfg.C1
+        self.C2 = cfg.C2
+        self.photometric_reduce_op = cfg.photometric_reduce_op
+        self.disp_norm = cfg.disp_norm
+        self.clip_loss = cfg.clip_loss
+        self.padding_mode = cfg.padding_mode
+        self.automask_loss = cfg.automask_loss
 
         # Asserts
         if self.automask_loss:

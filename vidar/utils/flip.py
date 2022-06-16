@@ -133,10 +133,10 @@ def flip_batch(batch, flip=True):
     # Flip batch
     flipped_batch = {}
     # Keys to not flip
-    for key in keys_in(batch, ['idx', 'filename', 'splitname']):
+    for key in keys_in(batch, ['idx', 'filename', 'splitname', 'filename_context']):
         flipped_batch[key] = batch[key]
     # Tensor flipping
-    for key in keys_in(batch, ['rgb', 'mask', 'input_depth', 'depth', 'semantic']):
+    for key in keys_in(batch, ['rgb', 'mask', 'input_depth', 'depth', 'semantic', 'pred_depth']):
         flipped_batch[key] = flip_lr(batch[key])
     # Intrinsics flipping
     for key in keys_in(batch, ['intrinsics']):

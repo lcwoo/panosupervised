@@ -5,30 +5,72 @@
 # tar xvf /data/vidar/{DATASET}.tar -C /data/vidar
 
 datasets:
-    kitti:
-        name: [KITTI]
-        path: [/data/vidar/KITTI_tiny]
-        split: [kitti_tiny.txt]
-        context: [-1,3]
-        cameras: [[0,1]]
-        labels: [depth,pose]
-        labels_context: [depth, pose]
-        depth_type: [velodyne]
-    vkitti2:
-        name: [VKITTI2]
-        path: [/data/vidar/VKITTI2_tiny]
-        split: [train]
-        context: [-2,2]
-        cameras: [[0,1]]
-        labels: [depth,pose,optical_flow]
-        labels_context: [depth,pose,optical_flow]
+    # kitti:
+    #     name: [KITTI]
+    #     path: [/data/vidar/KITTI_tiny]
+    #     split: [kitti_tiny.txt]
+    #     context: [-1,3]
+    #     cameras: [[0,1]]
+    #     labels: [depth,pose]
+    #     labels_context: [depth, pose]
+    #     depth_type: [velodyne]
+    # vkitti2:
+    #     name: [VKITTI2]
+    #     path: [/data/vidar/VKITTI2_tiny]
+    #     split: [train]
+    #     context: [-2,2]
+    #     cameras: [[0,1]]
+    #     labels: [depth,pose,optical_flow]
+    #     labels_context: [depth,pose,optical_flow]
     ddad:
         name: [Ouroboros]
         path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
         split: [train]
-        context: [-1,3]
+        context: [0,20]
         cameras: [[1,5,6,7,8,9]]
         labels: [depth,pose]
         labels_context: [depth,pose]
+        depth_type: [lidar]
+        virtual: [False]
+    ddad_pred:
+        masks: ['/data/datasets/DDAD/mask']
+        save_path: [
+            # '/data/disk/logs/save/2022-06-16_03h50m14s_ddad_overfit_000071-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+
+            # '/data/disk/logs/save/2022-06-18_02h32m00s_ddad_000197-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+
+            # '/data/disk/logs/save/2022-06-18_02h49m10s_ddad_000196-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+
+            # '/data/disk/logs/save/2022-06-18_02h51m09s_ddad_000188-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+            # '/data/disk/logs/save/2022-06-18_02h51m09s_ddad_000187-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+
+            # '/data/disk/logs/save/2022-06-18_02h59m39s_ddad_000186-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+            # '/data/disk/logs/save/2022-06-18_02h59m39s_ddad_000179-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+            # '/data/disk/logs/save/2022-06-18_02h59m39s_ddad_000171-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+            # '/data/disk/logs/save/2022-06-18_02h59m39s_ddad_000169-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+            # '/data/disk/logs/save/2022-06-18_02h59m39s_ddad_000168-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+            '/data/disk/logs/save/2022-06-18_02h59m39s_ddad_000167-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+            # '/data/disk/logs/save/2022-06-18_02h59m39s_ddad_000160-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+            # '/data/disk/logs/save/2022-06-18_02h59m39s_ddad_000158-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+            # '/data/disk/logs/save/2022-06-18_02h59m39s_ddad_000157-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+            # '/data/disk/logs/save/2022-06-18_02h59m39s_ddad_000155-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+            # '/data/disk/logs/save/2022-06-18_02h59m39s_ddad_000153-val-lidar-cam1/FSM_MR_6cams_DDAD/',
+        ]
+        name: [OuroborosPred]
+        path: [
+            # /data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json,
+
+            # /data/datasets/DDAD/ddad_train_val/ddad_000197.json,    # 50 frames
+            # /data/datasets/DDAD/ddad_train_val/ddad_000196.json,    # 50 frames
+            # /data/datasets/DDAD/ddad_train_val/ddad_000188.json,    # 100 frames
+            # /data/datasets/DDAD/ddad_train_val/ddad_000186.json,    # 100 frames
+            # /data/datasets/DDAD/ddad_train_val/ddad_000171.json,    # 100 frames
+            /data/datasets/DDAD/ddad_train_val/ddad_000167.json,    # 100 frames
+        ]
+        split: [val]
+        context: [0,99]
+        cameras: [[1,5,6,7,8,9]]
+        labels: [depth,pose,lidar]
+        labels_context: [depth,pose,lidar]
         depth_type: [lidar]
         virtual: [False]

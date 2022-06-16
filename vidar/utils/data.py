@@ -14,6 +14,7 @@ KEYS_IMAGE = [
         'rgb', 'mask',
         'input_depth', 'depth',
         'bwd_optical_flow', 'fwd_optical_flow',
+        'pred_depth_npz',
     ]
 
 KEYS_MATRIX = [

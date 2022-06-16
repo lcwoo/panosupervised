@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as tfn
 
 from vidar.geometry.camera import Camera
-from vidar.utils.decorators import iterate1
+from vidar.utils.decorators import iterate1, allow_5dim_tensor
 from vidar.utils.types import is_tensor, is_numpy
 
 
@@ -89,6 +89,7 @@ def fuse_inv_depth(inv_depth, inv_depth_hat, method='mean'):
         raise ValueError('Unknown post-process method {}'.format(method))
 
 
+@allow_5dim_tensor
 def post_process_inv_depth(inv_depth, inv_depth_flipped, method='mean'):
     """
     Post-process an inverse and flipped inverse depth map

@@ -119,10 +119,11 @@ class Saver:
                 for ctx in batch[key].keys():
                     rgb = batch[key][ctx][i].cpu()
                     if 'gt' in self.rgb:
-                        if rgb.dim() == 5:
-                            for j in range(rgb.shape[1]):
+                        if rgb.dim() == 4:
+                            # TODO(sohwang): Should be improved
+                            for j in range(len(rgb)):
                                 write_image('%s_%s(%d_%d)_gt.png' % (filename, key, j, ctx),
-                                            rgb[:, j])
+                                            rgb[j])
                         else:
                             write_image('%s_%s(%d)_gt.png' % (filename, key, ctx),
                                         rgb)
@@ -135,11 +136,21 @@ class Saver:
                         write_depth('%s_%s(%d)_gt.png' % (filename, key, ctx),
                                     depth)
                     if 'gt_npz' in self.depth:
-                        write_depth('%s_%s(%d)_gt.npz' % (filename, key, ctx),
-                                    depth, intrinsics=raw_intrinsics)
+                        if depth.dim() == 4:
+                            for j in range(len(depth)):
+                                write_depth('%s_%s(%d_%d)_gt_viz.png' % (filename, key, j, ctx),
+                                            depth[j], intrinsics=raw_intrinsics)
+                        else:
+                            write_depth('%s_%s(%d)_gt.npz' % (filename, key, ctx),
+                                        depth, intrinsics=raw_intrinsics)
                     if 'gt_viz' in self.depth:
-                        write_image('%s_%s(%d)_gt_viz.png' % (filename, key, ctx),
-                                    viz_depth(depth, filter_zeros=True))
+                        if depth.dim() == 4:
+                            for j in range(len(depth)):
+                                write_image('%s_%s(%d_%d)_gt_viz.png' % (filename, key, j, ctx),
+                                            viz_depth(depth[j], filter_zeros=True))
+                        else:
+                            write_image('%s_%s(%d)_gt_viz.png' % (filename, key, ctx),
+                                        viz_depth(depth, filter_zeros=True))
 
             if key.startswith('pose'):
                 pose = {k: v[i].cpu() for k, v in batch[key].items()}
@@ -168,14 +179,29 @@ class Saver:
                 for ctx in predictions[key].keys():
                     depth = predictions[key][ctx][0][i].cpu()
                     if 'png' in self.depth:
-                        write_depth('%s_%s(%d)_pred.png' % (filename, key, ctx),
-                                    depth)
+                        if depth.dim() == 4:
+                            for j in range(len(depth)):
+                                write_depth('%s_%s(%d_%d)_pred.png' % (filename, key, j, ctx),
+                                            depth[j])
+                        else:
+                            write_depth('%s_%s(%d)_pred.png' % (filename, key, ctx),
+                                        depth)
                     if 'npz' in self.depth:
-                        write_depth('%s_%s(%d)_pred.npz' % (filename, key, ctx),
-                                    depth, intrinsics=intrinsics)
+                        if depth.dim() == 4:
+                            for j in range(len(depth)):
+                                write_depth('%s_%s(%d_%d)_pred.npz' % (filename, key, j, ctx),
+                                            depth[j], intrinsics=intrinsics)
+                        else:
+                            write_depth('%s_%s(%d)_pred.npz' % (filename, key, ctx),
+                                        depth, intrinsics=intrinsics)
                     if 'viz' in self.depth:
-                        write_image('%s_%s(%d)_pred_viz.png' % (filename, key, ctx),
-                                    viz_depth(depth))
+                        if depth.dim() == 4:
+                            for j in range(len(depth)):
+                                write_image('%s_%s(%d_%d)_pred_viz.png' % (filename, key, j, ctx),
+                                            viz_depth(depth[j]))
+                        else:
+                            write_image('%s_%s(%d)_pred_viz.png' % (filename, key, ctx),
+                                        viz_depth(depth))
 
             if key.startswith('pose'):
                 pose = {key: val[i].cpu() for key, val in predictions[key].items()}

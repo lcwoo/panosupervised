@@ -1,6 +1,7 @@
 # TRI-VIDAR - Copyright 2022 Toyota Research Institute.  All rights reserved.
 
 from collections import OrderedDict
+from datetime import datetime
 
 import torch
 from tqdm import tqdm
@@ -89,6 +90,9 @@ class Trainer:
 
         self.current_epoch = 0
         self.training_bar_metrics = cfg_has(cfg.wrapper, 'training_bar_metrics', [])
+
+        # Get datestr to organize saving in good shape
+        self.exp_launch_time = datetime.now().strftime('%Y-%m-%d_%Hh%Mm%Ss')
 
     @property
     def progress(self):
@@ -282,7 +286,7 @@ class Trainer:
         # Prepare prefixes
 
         prefixes = {
-            key: [dataset_prefix(wrapper.datasets_cfg[key][n], n) for n in range(len(val))]
+            key: [self.exp_launch_time + '_' + dataset_prefix(wrapper.datasets_cfg[key][n], n) for n in range(len(val))]
             for key, val in wrapper.datasets_cfg.items() if 'name' in wrapper.datasets_cfg[key][0].__dict__.keys()
         }
 
@@ -372,7 +376,7 @@ class Trainer:
         """Training loop for each epoch"""
         # Choose which optimizers to use
         in_optimizers, out_optimizers = self.filter_optimizers(optimizers)
-        
+
         # Set wrapper to train
         wrapper.train_custom(in_optimizers, out_optimizers)
 

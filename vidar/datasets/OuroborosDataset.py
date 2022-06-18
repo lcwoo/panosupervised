@@ -257,7 +257,7 @@ class OuroborosDataset(BaseDataset):
             lidar_pose = self.get_current_or_context('pose', depth_idx, context)
             lidar_points = self.get_current_or_context('point_cloud', depth_idx, context)
             world_points = lidar_pose * lidar_points
-            
+
         # Create camera
         camera = self.create_camera(camera_idx, context)
         image_shape = self.get_current_or_context('rgb', camera_idx, context).size[::-1]
@@ -265,7 +265,7 @@ class OuroborosDataset(BaseDataset):
         depth  = generate_proj_maps(camera, world_points, image_shape)
         # Save depth map
         save_to_file(filename_depth, 'depth', depth)
-        # Return depth 
+        # Return depth
         return depth
 
 
@@ -372,7 +372,7 @@ class OuroborosDataset(BaseDataset):
             if self.masks_path is not None:
                 sample.update({
                     'mask': read_image(os.path.join(
-                        self.masks_path, '%02d.png' % self.cameras[i]))
+                        self.masks_path, 'camera_%02d.png' % self.cameras[i]))
                 })
 
             # If depth is returned
@@ -472,9 +472,11 @@ class OuroborosDataset(BaseDataset):
                         'lidar_extrinsics_context':
                             [(orig_extrinsics.inverse() * extrinsics).inverse().matrix
                              for extrinsics in self.get_context('extrinsics', self.depth_idx)],
+                        # 'lidar_pose_context':
+                        #     [(orig_pose.inverse() * pose).inverse().matrix
+                        #      for pose in self.get_context('pose', self.depth_idx)],
                         'lidar_pose_context':
-                            [(orig_pose.inverse() * pose).inverse().matrix
-                             for pose in self.get_context('pose', self.depth_idx)],
+                            [pose.matrix for pose in self.get_context('pose', self.depth_idx)],
                     })
 
 

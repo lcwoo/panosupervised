@@ -72,6 +72,9 @@ def stack_sample(sample, lidar_sample=None, radar_sample=None):
         else:
             stacked_sample[key] = [s[key] for s in sample]
 
+    if lidar_sample is not None:
+        stacked_sample.update(lidar_sample)
+
     # Return stacked sample
     return stacked_sample
 

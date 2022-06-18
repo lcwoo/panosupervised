@@ -1,9 +1,11 @@
 wrapper:
     recipe: wrapper|default
+    validate_first: True
 arch:
     model:
         file: depth/FSMModel
-        checkpoint: /data/storage/models/papers/final/FSM_MR_6cams_DDAD.ckpt
+        # checkpoint: /data/storage/models/papers/final/FSM_MR_6cams_DDAD.ckpt
+        checkpoint: /home/soonminh/workspace/panodepth-vidar/pretrained/FSM_MR_6cams_DDAD.ckpt
     networks:
         depth:
             recipe: networks/focal_depth_res_net|fsm_ddad
@@ -14,8 +16,23 @@ evaluation:
         recipe: evaluation/depth|ddad_resize
 datasets:
     validation:
-        recipe: datasets/ddad|validation_6cams
+        # recipe: datasets/ddad|validation_6cams
+        recipe: datasets/ddad_tiny|validation_6cams
+        path: [
+            /data/datasets/DDAD/ddad_train_val/ddad_000186.json,
+            /data/datasets/DDAD/ddad_train_val/ddad_000179.json,
+            /data/datasets/DDAD/ddad_train_val/ddad_000171.json,
+            /data/datasets/DDAD/ddad_train_val/ddad_000169.json,
+            /data/datasets/DDAD/ddad_train_val/ddad_000168.json,
+            /data/datasets/DDAD/ddad_train_val/ddad_000167.json,
+            /data/datasets/DDAD/ddad_train_val/ddad_000160.json,
+            /data/datasets/DDAD/ddad_train_val/ddad_000158.json,
+            /data/datasets/DDAD/ddad_train_val/ddad_000157.json,
+            /data/datasets/DDAD/ddad_train_val/ddad_000155.json,
+            /data/datasets/DDAD/ddad_train_val/ddad_000153.json,
+        ]
 save:
     recipe: save|depth_splitname
     rgb: [gt, tgt]
     depth: [gt_viz, gt_npz, viz, npz]
+    naming: filename

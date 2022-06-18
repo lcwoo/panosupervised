@@ -2,6 +2,7 @@
 
 import os
 
+from vidar.datasets.augmentations.resize import resize_torch_preserve
 from vidar.utils.config import cfg_has
 from vidar.utils.data import make_list
 from vidar.utils.types import is_dict, is_list
@@ -38,13 +39,15 @@ class Saver:
         assert self.naming in ['filename', 'splitname'], \
             'Invalid naming for saver: {}'.format(self.naming)
 
-    def get_filename(self, path, batch, idx, i):
+    def get_filename(self, path, batch, idx, i, c):
         """Get filename based on input information"""
         if self.naming == 'filename':
-            filename = os.path.join(path, batch['filename'][0][i]).replace('{}', 'rgb')
+            # TODO(soonminh): do we need i here (batch?)
+            filename = os.path.join(path, batch['filename'][0][c][i]).replace('{}/', '')
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             return filename
         elif self.naming == 'splitname':
+            raise NotImplementedError('Please check filename format.')
             if self.separate:
                 return os.path.join(path, '%010d' % idx, '%010d' % idx)
             else:
@@ -101,8 +104,6 @@ class Saver:
             Dictionary with output data that was saved
         """
 
-        filename = self.get_filename(path, batch, idx, i)
-
         raw_intrinsics = batch['raw_intrinsics'][0][i].cpu() if 'raw_intrinsics' in batch else \
             batch['intrinsics'][0][i].cpu() if 'intrinsics' in batch else None
         intrinsics = batch['intrinsics'][0][i].cpu() if 'intrinsics' in batch else None
@@ -111,6 +112,7 @@ class Saver:
             'raw_intrinsics': raw_intrinsics,
             'intrinsics': intrinsics,
         }
+        img_shape = batch['rgb'][0].shape[-2:]
 
         for key in batch.keys():
 
@@ -122,9 +124,13 @@ class Saver:
                         if rgb.dim() == 4:
                             # TODO(sohwang): Should be improved
                             for j in range(len(rgb)):
-                                write_image('%s_%s(%d_%d)_gt.png' % (filename, key, j, ctx),
+                                filename = self.get_filename(path, batch, idx, i, j)
+                                # write_image('%s_%s(%d_%d)_gt.png' % (filename, key, j, ctx),
+                                write_image('%s_%s_%d_gt.png' % (filename, key, ctx),
                                             rgb[j])
                         else:
+                            filename = self.get_filename(path, batch, idx, i, 0)
+                            # write_image('%s_%s(%d)_gt.png' % (filename, key, ctx),
                             write_image('%s_%s(%d)_gt.png' % (filename, key, ctx),
                                         rgb)
 
@@ -133,29 +139,40 @@ class Saver:
                 for ctx in batch[key].keys():
                     depth = batch[key][ctx][i].cpu()
                     if 'gt_png' in self.depth:
-                        write_depth('%s_%s(%d)_gt.png' % (filename, key, ctx),
+                        # write_depth('%s_%s(%d)_gt.png' % (filename, key, ctx),
+                        filename = self.get_filename(path, batch, idx, i, 0)
+                        write_depth('%s_%s_%d_gt.png' % (filename, key, ctx),
                                     depth)
                     if 'gt_npz' in self.depth:
                         if depth.dim() == 4:
                             for j in range(len(depth)):
-                                write_depth('%s_%s(%d_%d)_gt_viz.png' % (filename, key, j, ctx),
+                                # write_depth('%s_%s(%d_%d)_gt_viz.png' % (filename, key, j, ctx),
+                                filename = self.get_filename(path, batch, idx, i, j)
+                                write_depth('%s_%s_%d_gt_viz.png' % (filename, key, ctx),
                                             depth[j], intrinsics=raw_intrinsics)
                         else:
-                            write_depth('%s_%s(%d)_gt.npz' % (filename, key, ctx),
+                            # write_depth('%s_%s(%d)_gt.npz' % (filename, key, ctx),
+                            filename = self.get_filename(path, batch, idx, i, 0)
+                            write_depth('%s_%s_%d_gt.npz' % (filename, key, ctx),
                                         depth, intrinsics=raw_intrinsics)
                     if 'gt_viz' in self.depth:
                         if depth.dim() == 4:
                             for j in range(len(depth)):
-                                write_image('%s_%s(%d_%d)_gt_viz.png' % (filename, key, j, ctx),
-                                            viz_depth(depth[j], filter_zeros=True))
+                                # write_image('%s_%s(%d_%d)_gt_viz.png' % (filename, key, j, ctx),
+                                filename = self.get_filename(path, batch, idx, i, j)
+                                write_image('%s_%s_%d_gt_viz.png' % (filename, key, ctx),
+                                            viz_depth(resize_torch_preserve(depth[j], img_shape), filter_zeros=True))
                         else:
-                            write_image('%s_%s(%d)_gt_viz.png' % (filename, key, ctx),
-                                        viz_depth(depth, filter_zeros=True))
+                            # write_image('%s_%s(%d)_gt_viz.png' % (filename, key, ctx),
+                            filename = self.get_filename(path, batch, idx, i, 0)
+                            write_image('%s_%s_%d_gt_viz.png' % (filename, key, ctx),
+                                        viz_depth(resize_torch_preserve(depth, img_shape), filter_zeros=True))
 
             if key.startswith('pose'):
                 pose = {k: v[i].cpu() for k, v in batch[key].items()}
                 data[key + '_gt'] = pose
                 if 'gt' in self.pose:
+                    filename = self.get_filename(path, batch, idx, i, 0)
                     write_pickle('%s_%s_gt' % (filename, key),
                                  pose)
 
@@ -168,10 +185,14 @@ class Saver:
                     if 'pred' in self.rgb:
                         if rgb.dim() == 5:
                             for j in range(rgb.shape[1]):
-                                write_image('%s_%s(%d_%d)_pred.png' % (filename, key, j, ctx),
+                                # write_image('%s_%s(%d_%d)_pred.png' % (filename, key, j, ctx),
+                                filename = self.get_filename(path, batch, idx, i, j)
+                                write_image('%s_%s_%d_pred.png' % (filename, key, ctx),
                                             rgb[:, j])
                         else:
-                            write_image('%s_%s(%d)_pred.png' % (filename, key, ctx),
+                            # write_image('%s_%s(%d)_pred.png' % (filename, key, ctx),
+                            filename = self.get_filename(path, batch, idx, i, 0)
+                            write_image('%s_%s_%d_pred.png' % (filename, key, ctx),
                                         rgb)
 
             if key.startswith('depth'):
@@ -181,32 +202,45 @@ class Saver:
                     if 'png' in self.depth:
                         if depth.dim() == 4:
                             for j in range(len(depth)):
-                                write_depth('%s_%s(%d_%d)_pred.png' % (filename, key, j, ctx),
+                                # write_depth('%s_%s(%d_%d)_pred.png' % (filename, key, j, ctx),
+                                filename = self.get_filename(path, batch, idx, i, j)
+                                write_depth('%s_%s_%d_pred.png' % (filename, key, ctx),
                                             depth[j])
                         else:
-                            write_depth('%s_%s(%d)_pred.png' % (filename, key, ctx),
+                            # write_depth('%s_%s(%d)_pred.png' % (filename, key, ctx),
+                            filename = self.get_filename(path, batch, idx, i, 0)
+                            write_depth('%s_%s_%d_pred.png' % (filename, key, ctx),
                                         depth)
                     if 'npz' in self.depth:
                         if depth.dim() == 4:
                             for j in range(len(depth)):
-                                write_depth('%s_%s(%d_%d)_pred.npz' % (filename, key, j, ctx),
+                                # write_depth('%s_%s(%d_%d)_pred.npz' % (filename, key, j, ctx),
+                                filename = self.get_filename(path, batch, idx, i, j)
+                                write_depth('%s_%s_%d_pred.npz' % (filename, key, ctx),
                                             depth[j], intrinsics=intrinsics)
                         else:
-                            write_depth('%s_%s(%d)_pred.npz' % (filename, key, ctx),
+                            # write_depth('%s_%s(%d)_pred.npz' % (filename, key, ctx),
+                            filename = self.get_filename(path, batch, idx, i, 0)
+                            write_depth('%s_%s_%d_pred.npz' % (filename, key, ctx),
                                         depth, intrinsics=intrinsics)
                     if 'viz' in self.depth:
                         if depth.dim() == 4:
                             for j in range(len(depth)):
-                                write_image('%s_%s(%d_%d)_pred_viz.png' % (filename, key, j, ctx),
-                                            viz_depth(depth[j]))
+                                # write_image('%s_%s(%d_%d)_pred_viz.png' % (filename, key, j, ctx),
+                                filename = self.get_filename(path, batch, idx, i, j)
+                                write_image('%s_%s_%d_pred_viz.png' % (filename, key, ctx),
+                                            viz_depth(resize_torch_preserve(depth[j], img_shape)))
                         else:
-                            write_image('%s_%s(%d)_pred_viz.png' % (filename, key, ctx),
-                                        viz_depth(depth))
+                            # write_image('%s_%s(%d)_pred_viz.png' % (filename, key, ctx),
+                            filename = self.get_filename(path, batch, idx, i, 0)
+                            write_image('%s_%s_%d_pred_viz.png' % (filename, key, ctx),
+                                        viz_depth(resize_torch_preserve(depth, img_shape)))
 
             if key.startswith('pose'):
                 pose = {key: val[i].cpu() for key, val in predictions[key].items()}
                 data[key + '_pred'] = pose
                 if 'pred' in self.pose:
+                    filename = self.get_filename(path, batch, idx, i, 0)
                     write_pickle('%s_%s_pred' % (filename, key),
                                  pose)
 
@@ -214,24 +248,32 @@ class Saver:
                 optical_flow = {key: val[i].cpu() for key, val in predictions[key].items()}
                 data[key + '_pred'] = optical_flow
                 if 'npz' in self.optical_flow:
+                    filename = self.get_filename(path, batch, idx, i, 0)
                     write_npz('%s_%s_pred' % (filename, key),
                                  {'fwd_optical_flow': optical_flow})
                 if 'viz' in self.optical_flow:
                     for ctx in optical_flow.keys():
-                        write_image('%s_%s(%d)_pred_viz.png' % (filename, key, ctx),
+                        # write_image('%s_%s(%d)_pred_viz.png' % (filename, key, ctx),
+                        filename = self.get_filename(path, batch, idx, i, 0)
+                        write_image('%s_%s_%d_pred_viz.png' % (filename, key, ctx),
                                     viz_optical_flow(optical_flow[ctx]))
 
             if key.startswith('mask'):
                 if is_dict(predictions[key]):
                     data[key] = {k: v[i].cpu() for k, v in predictions[key].items()}
                     for ctx in data[key].keys():
-                        write_image('%s_%s(%d)_pred_viz.png' % (filename, key, ctx), predictions[key][ctx][0])
+                        # write_image('%s_%s(%d)_pred_viz.png' % (filename, key, ctx), predictions[key][ctx][0])
+                        filename = self.get_filename(path, batch, idx, i, 0)
+                        write_image('%s_%s_%d_pred_viz.png' % (filename, key, ctx), predictions[key][ctx][0])
                 elif is_list(predictions[key]):
                     data[key] = [v[i].cpu() for k, v in predictions[key]]
                     for ctx in data[key]:
-                        write_image('%s_%s(%d)_pred_viz.png' % (filename, key, ctx), predictions[key][ctx][0])
+                        # write_image('%s_%s(%d)_pred_viz.png' % (filename, key, ctx), predictions[key][ctx][0])
+                        filename = self.get_filename(path, batch, idx, i, 0)
+                        write_image('%s_%s_%d_pred_viz.png' % (filename, key, ctx), predictions[key][ctx][0])
                 else:
                     data[key] = predictions[key][i].cpu()
+                    filename = self.get_filename(path, batch, idx, i, 0)
                     write_image('%s_%s_pred_viz.png' % (filename, key), predictions[key][0])
 
         if self.store_data:

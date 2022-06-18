@@ -171,3 +171,8 @@ class BaseDataset(Dataset, ABC):
     def with_bbox3d_context(self):
         """If dataset contains context 3d bounding boxes"""
         return 'bbox3d' in self.labels_context
+
+    @property
+    def with_extra_context(self):
+        """If dataset contains context pose and lidar"""
+        return 'pose' in self.labels_context and 'lidar' in self.labels_context

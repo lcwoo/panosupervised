@@ -65,7 +65,7 @@ def resize_npy(depth, shape, expand=True):
 
 
 @iterate1
-def resize_npy_preserve(depth, shape):
+def resize_npy_preserve(depth, shape, expand_dims=True):
     """
     Resizes depth map preserving all valid depth pixels
     Multiple downsampled points can be assigned to the same pixel.
@@ -104,7 +104,7 @@ def resize_npy_preserve(depth, shape):
     depth = np.zeros(shape)
     depth[crd[:, 0], crd[:, 1]] = val
     # Return resized depth map
-    return np.expand_dims(depth, axis=2)
+    return np.expand_dims(depth, axis=2) if expand_dims else depth
 
 
 @iterate1

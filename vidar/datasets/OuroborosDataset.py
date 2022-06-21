@@ -95,10 +95,12 @@ class OuroborosDataset(BaseDataset):
         Which dataset will be used
     only_cache : Bool
         Only use cached pointcloud information, without loading the sensor
+    do_stack_samples : bool
+        If enabled returned samples are stacked
     """
     def __init__(self, split, tag=None,
                  depth_type=None, input_depth_type=None,
-                 masks=None, **kwargs):
+                 masks=None, do_stack_samples=True, **kwargs):
         super().__init__(**kwargs)
         self.tag = 'ouroboros' if tag is None else tag
 
@@ -160,6 +162,8 @@ class OuroborosDataset(BaseDataset):
             only_annotated_datums=False,
             **extra_args,
         )
+
+        self.do_stack_samples = do_stack_samples
 
     def depth_to_world_points(self, depth, datum_idx):
         """
@@ -243,7 +247,7 @@ class OuroborosDataset(BaseDataset):
             return np.load(filename)['data'], None, None
         # Otherwise, we want projected information
         filename_depth = '{}/{}.npz'.format(
-            os.path.dirname(self.path), filename.format('projected/depth/{}'.format(depth_type)))
+            os.path.dirname(self.path), filename.format('depth/{}'.format(depth_type)))
         # Load and return if exists
         try:
             # Get cached depth map
@@ -486,4 +490,4 @@ class OuroborosDataset(BaseDataset):
             # lidar_sample = self.data_transform(lidar_sample)
 
         # Return sample (stacked if necessary)
-        return stack_sample(samples, lidar_sample)
+        return stack_sample(samples, lidar_sample) if self.do_stack_samples else (samples, lidar_sample)

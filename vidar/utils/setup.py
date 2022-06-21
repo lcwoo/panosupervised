@@ -113,6 +113,10 @@ def setup_dataset(cfg, root='vidar/datasets', verbose=False):
             if not is_namespace(val):
                 cfg_add_to_dict(args, cfg, key, i if key not in shared_keys else None)
 
+        # HACK(soonminh): need refactoring to pass namespace-style of parameters
+        if 'pano_cam_config' in cfg:
+            cfg_add_to_dict(args, cfg, 'pano_cam_config', None)
+
         args['data_transform'] = get_transforms('train', cfg.augmentation) \
             if cfg_has(cfg, 'augmentation') else get_transforms('none')
 
@@ -138,6 +142,9 @@ def setup_dataset(cfg, root='vidar/datasets', verbose=False):
                 string += f' | cameras {cameras}'.replace(', ', ',')
             if cfg_has(cfg, 'labels'):
                 string += f' | labels {labels}'.replace(', ', ',')
+            if cfg_has(cfg, 'pano_cam_config'):
+                pano_cam_config_str = f'{cfg.pano_cam_config}'[len('Config('):-1]
+                string += f'\n\t\t << PanoCam config >> \n\t\t\t{pano_cam_config_str}'.replace(', ', '\n\t\t\t')
             print0(pcolor(string , color='yellow', attrs=('dark',)))
 
         datasets.append(dataset)

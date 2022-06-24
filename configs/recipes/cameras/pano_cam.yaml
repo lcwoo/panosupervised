@@ -1,5 +1,5 @@
-default:
-    name: default
+panocam1:
+    name: panocam_150_z_-03_+02
     position_in_world: [0, 0, 1.5]
     height: 256
     width: 2048
@@ -7,8 +7,8 @@ default:
     phi_range: [0, 6.2831853072]    # 6.2831853072 = 2 * pi
     z_range: [-0.3, 0.2]
 
-standard:
-    name: standard
+panocam2:
+    name: panocam_150_z_-02_+02
     position_in_world: [0, 0, 1.5]
     height: 256
     width: 2048

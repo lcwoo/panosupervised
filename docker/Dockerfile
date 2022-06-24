@@ -59,7 +59,7 @@ RUN pip install \
     tenacity==7.0.0 \
     pycocotools==2.0.2 \
     awscli==1.19.101 \
-    timm==0.4.9 \
+    timm==0.5.4 \
     ref==0.0.2.2 \
     positional-encodings==4.0.0 \
     einops==0.3.2 \

@@ -6,7 +6,7 @@ from pytorch3d.transforms.rotation_conversions import \
 
 from vidar.utils.data import keys_in
 from vidar.utils.decorators import iterate1, iterate12
-from vidar.utils.types import is_tensor, is_list, is_seq
+from vidar.utils.types import is_tensor, is_list, is_seq, is_dict
 
 
 def flip_lr_fn(tensor):
@@ -130,6 +130,9 @@ def flip_batch(batch, flip=True):
     # If it's a list, repeat
     if is_seq(batch):
         return [flip_batch(b) for b in batch]
+    # If it's a dict, repeat
+    if is_dict(batch):
+        return {k: flip_batch(v) for k, v in batch.item()}
     # Flip batch
     flipped_batch = {}
     # Keys to not flip

@@ -8,6 +8,7 @@ from vidar.utils.data import keys_in
 from vidar.utils.decorators import iterate1
 
 
+@iterate1
 def duplicate_sample(sample, keys):
     """
     Duplicates sample images and contexts to preserve their un-augmented versions.

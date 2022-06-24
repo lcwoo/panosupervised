@@ -9,7 +9,8 @@ import torchvision.transforms as transforms
 
 from vidar.utils.decorators import multi_write
 from vidar.utils.types import is_tensor, is_numpy
-
+from vidar.utils.viz import viz_depth, viz_inv_depth
+# from vidar.utils.write import write_image
 
 def create_folder(filename):
     """Create a new folder if it doesn't exist"""
@@ -130,3 +131,30 @@ def write_optical_flow(filename, optflow):
     # Something is wrong
     else:
         raise NotImplementedError('Optical flow filename not valid.')
+
+
+def draw_inputs(batch):
+    """Useful for debugging to see the input data right before feeding to the network"""
+
+    camera_order = ['camera_07', 'camera_05', 'camera_01', 'camera_06', 'camera_08', 'camera_09']
+    float_tensor_to_uint8_numpy = lambda x: (x[0].permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8)
+    scene, *_, timestamp = batch['camera_pano']['filename'][0].split('/')
+    filename = f'{scene}_{timestamp}'
+
+    gt_pano_depth = (viz_depth(batch['camera_pano']['depth'][0][0]) * 255.0).astype(np.uint8)
+    h_viz, w_viz = gt_pano_depth.shape[:2]
+
+    raw_rgb = [float_tensor_to_uint8_numpy(batch[c]['raw_rgb'][0]) for c in camera_order]
+    raw_rgb = np.hstack(raw_rgb)
+    _h, _w = raw_rgb.shape[:2]
+    raw_rgb = cv2.resize(raw_rgb, (0, 0), fx=w_viz/_w, fy=w_viz/_w)
+    # cv2.imwrite(f'{filename}_raw_rgb.png', raw_rgb[:,:,(2,1,0)])
+
+    aug_rgb = [float_tensor_to_uint8_numpy(batch[c]['rgb'][0]) for c in camera_order]
+    aug_rgb = np.hstack(aug_rgb)
+    _h, _w = aug_rgb.shape[:2]
+    aug_rgb = cv2.resize(aug_rgb, (0, 0), fx=w_viz/_w, fy=w_viz/_w)
+    # cv2.imwrite(f'{filename}_aug_rgb.png', aug_rgb[:,:,(2,1,0)])
+
+    # cv2.imwrite(f'{filename}_frame.png', np.vstack([raw_rgb, aug_rgb, gt_pano_depth])[:,:,(2,1,0)])
+    return np.vstack([raw_rgb, aug_rgb, gt_pano_depth])[:,:,(2,1,0)]

@@ -24,3 +24,55 @@ fsm:
     automask_loss: True
     weight: 1.0
     alpha: 0.85
+
+panodepth:
+    file: PanoDepthPhotometricLoss
+    num_scales: 4
+    ssim_loss_weight: 0.85
+    occ_reg_weight: 0.1
+    smooth_loss_weight: 0.1
+    C1: 0.0001
+    C2: 0.0009
+    photometric_reduce_op: min
+    disp_norm: True
+    clip_loss: 0.5
+    progressive_scaling: 0.0
+    padding_mode: zeros
+    automask_loss: True
+    weight: 1.0
+    alpha: 0.85
+    ### Definition of photometric reprojection loss pairs: list of tuples
+    # tuple: (target, target_context_idx, source, source_context_idx)
+    #   - context_idx: -1 (backward), 0 (current), 1 (forward)
+    #   - From "panodepth" prediction, we use flow reversal layer to reconstruct target_depth.
+    #     then, use the target_depth to calculate reprojection from source
+    reprojection_pairs: [
+        ['camera_01', 0, 'camera_01', -1],
+        ['camera_05', 0, 'camera_05', -1],
+        ['camera_06', 0, 'camera_06', -1],
+        ['camera_07', 0, 'camera_07', -1],
+        ['camera_08', 0, 'camera_08', -1],
+        ['camera_09', 0, 'camera_09', -1],
+
+        ['camera_01', 0, 'camera_01', 1],
+        ['camera_05', 0, 'camera_05', 1],
+        ['camera_06', 0, 'camera_06', 1],
+        ['camera_07', 0, 'camera_07', 1],
+        ['camera_08', 0, 'camera_08', 1],
+        ['camera_09', 0, 'camera_09', 1],
+
+        ['camera_01', 0, 'camera_05', 0],
+        ['camera_01', 0, 'camera_06', 0],
+        ['camera_05', 0, 'camera_01', 0],
+        ['camera_05', 0, 'camera_07', 0],
+        ['camera_06', 0, 'camera_01', 0],
+        ['camera_06', 0, 'camera_08', 0],
+        ['camera_07', 0, 'camera_05', 0],
+        ['camera_07', 0, 'camera_09', 0],
+        ['camera_08', 0, 'camera_06', 0],
+        ['camera_08', 0, 'camera_09', 0],
+        ['camera_09', 0, 'camera_07', 0],
+        ['camera_09', 0, 'camera_08', 0],
+    ]
+    mono_weight: 0.9
+    stereo_weight: 0.1

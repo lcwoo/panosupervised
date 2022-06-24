@@ -1,5 +1,6 @@
 # TRI-VIDAR - Copyright 2022 Toyota Research Institute.  All rights reserved.
 
+import cv2
 from functools import reduce
 
 import torch
@@ -313,3 +314,37 @@ def interleave(data, b):
     """Interleave data considering multiple batches"""
     data_interleave = data.unsqueeze(1).expand(-1, b, *data.shape[1:])
     return data_interleave.reshape(-1, *data.shape[1:])
+
+
+def make_same_resolution(images, shape, mode='bilinear', align_corners=True):
+    """
+    Interpolate images to the same resolution
+
+    Parameters
+    ----------
+    images : List of torch.Tensor or np.ndarray
+        Images to be interpolated [B,?,h,w] or [h,w,3]
+    shape : torch.Tensor or tuple
+        Output shape [H,W]
+    mode : String
+        Interpolation mode
+    align_corners : Bool
+        True if corners will be aligned after interpolation
+
+    Returns
+    -------
+    images : List of torch.Tensor or np.ndarray
+        Interpolated images [B,?,H,W] or [h,w,3]
+    """
+    assert shape is not None, 'Invalid option for interpolate_image'
+    if mode == 'nearest':
+        align_corners = None
+
+    if is_tensor(images[0]):
+        images = [tfn.interpolate(image, size=shape, mode=mode, align_corners=align_corners)
+                    for image in images]
+    else:
+        images = [cv2.resize(image, (shape[1], shape[0])) for image in images]
+
+
+    return images

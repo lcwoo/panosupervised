@@ -11,6 +11,7 @@ from vidar.utils.distributed import on_rank_0
 from vidar.utils.logging import pcolor
 from vidar.utils.types import is_dict
 
+DEPTH_METRICS = ('abs_rel', 'sqr_rel', 'rmse', 'rmse_log', 'silog', 'a1', 'a2', 'a3')
 
 class DepthEvaluation(BaseEvaluation):
     """
@@ -21,11 +22,8 @@ class DepthEvaluation(BaseEvaluation):
     cfg : Config
         Configuration file
     """
-    def __init__(self, cfg):
-        super().__init__(cfg,
-            name='depth', task='depth',
-            metrics=('abs_rel', 'sqr_rel', 'rmse', 'rmse_log', 'silog', 'a1', 'a2', 'a3'),
-        )
+    def __init__(self, cfg, name='depth', task='depth', metrics=DEPTH_METRICS):
+        super().__init__(cfg, name, task, metrics)
 
         self.min_depth = cfg.min_depth
         self.max_depth = cfg.max_depth
@@ -221,3 +219,67 @@ class DepthEvaluation(BaseEvaluation):
 
         return dict_remove_nones(metrics), predictions
 
+
+class PanoDepthEvaluation(DepthEvaluation):
+    """
+    PanoDetph evaluation metrics
+
+    Parameters
+    ----------
+    cfg : Config
+        Configuration file
+    """
+    def __init__(self, cfg):
+        super().__init__(cfg, name='panodepth', task='panodepth')
+        if self.post_process:
+            raise NotImplementedError
+
+    def evaluate(self, batch, output, flipped_output=None):
+        """
+        Evaluate predictions
+
+        Parameters
+        ----------
+        batch : Dict
+            Dictionary containing ground-truth information
+        output : Dict
+            Dictionary containing predictions
+        flipped_output : Bool
+            Optional flipped output for post-processing
+
+        Returns
+        -------
+        metrics : Dict
+            Dictionary with calculated metrics
+        predictions : Dict
+            Dictionary with additional predictions
+        """
+        metrics, predictions = {}, {}
+        # For each output item
+        for key, val in output.items():
+            # Loop over every context
+            val = val if is_dict(val) else {0: val}
+            for ctx in val.keys():
+
+                # TODO(soonminh): Loop over every scale
+                pred = val[ctx]
+                gt = batch['camera_pano']['depth']
+
+                # TODO(soonminh): Support post-process (flip multicam batch)
+                if self.post_process:
+                    pred_flipped = flipped_output[key][ctx]
+                    pred_pp = post_process_depth(pred, pred_flipped, method='mean')
+                else:
+                    pred_pp = None
+
+                suffix = '(%s)' % str(ctx)
+                for mode in self.modes:
+                    metrics[f'{key}|{mode}{suffix}'] = \
+                        self.compute(
+                            gt=gt,
+                            pred=pred_pp if 'pp' in mode else pred,
+                            use_gt_scale='gt' in mode,
+                            mask=None,
+                        )
+
+        return dict_remove_nones(metrics), predictions

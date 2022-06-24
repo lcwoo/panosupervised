@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import ConcatDataset, DataLoader
 
 from vidar.datasets.utils.transforms import get_transforms
-from vidar.metrics.depth import DepthEvaluation
+from vidar.metrics.depth import DepthEvaluation, PanoDepthEvaluation
 from vidar.utils.config import get_folder_name, load_class, \
     recursive_assignment, cfg_has, cfg_add_to_dict, get_from_cfg_list
 from vidar.utils.config import merge_dict, to_namespace
@@ -133,7 +133,7 @@ def setup_dataset(cfg, root='vidar/datasets', verbose=False):
             dataset = ConcatDataset([dataset for _ in range(repeat)])
 
         if verbose:
-            string = f'######### {name}: {len(dataset)} samples'
+            string = f'#### {name}: \n\t {len(dataset)} samples'
             if cfg_has(cfg, 'repeat'):
                 string += f' (x{repeat})'
             if cfg_has(cfg, 'context'):
@@ -142,9 +142,11 @@ def setup_dataset(cfg, root='vidar/datasets', verbose=False):
                 string += f' | cameras {cameras}'.replace(', ', ',')
             if cfg_has(cfg, 'labels'):
                 string += f' | labels {labels}'.replace(', ', ',')
+            string += '\n\t'
+            if cfg_has(cfg, 'augmentation'):
+                string += f' | augmentation {cfg.augmentation}'.replace(', ', ',')
             if cfg_has(cfg, 'pano_cam_config'):
-                pano_cam_config_str = f'{cfg.pano_cam_config}'[len('Config('):-1]
-                string += f'\n\t\t << PanoCam config >> \n\t\t\t{pano_cam_config_str}'.replace(', ', '\n\t\t\t')
+                string += f' | (PanoCam) {cfg.pano_cam_config.name}'.replace(', ', ',')
             print0(pcolor(string , color='yellow', attrs=('dark',)))
 
         datasets.append(dataset)
@@ -240,6 +242,7 @@ def setup_metrics(cfg):
 
     methods = {
         'depth': DepthEvaluation,
+        'panodepth': PanoDepthEvaluation,
     }
 
     available_tasks = [key for key in cfg.__dict__.keys() if key is not 'tasks']

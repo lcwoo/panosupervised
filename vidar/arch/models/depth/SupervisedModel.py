@@ -24,7 +24,7 @@ class SupervisedModel(BaseModel, ABC):
     def __init__(self, cfg):
         super().__init__()
 
-    def forward(self, batch, epoch):
+    def forward(self, batch, epoch, return_logs=False):
         """Model forward pass"""
 
         rgb = batch['rgb']

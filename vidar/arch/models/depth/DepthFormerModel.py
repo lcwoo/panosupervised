@@ -124,7 +124,7 @@ class DepthFormerModel(BaseModel, ABC):
         mask2 = ((depth2 - depth1) / depth1).abs() < thr
         return mask1 * mask2
 
-    def forward(self, batch, epoch=0):
+    def forward(self, batch, epoch=0, return_logs=False):
         """Model forward pass"""
 
         mono_depth_string = 'mono_depth'
@@ -230,7 +230,7 @@ class DepthFormerModel(BaseModel, ABC):
                 depth_mono = [batch['depth'][0][:, 0]]
             else:
                 depth_mono = mono_depth_output['depths']
-                
+
             predictions['depth_mono'] = {0: depth_mono}
         else:
             mono_depth_output = depth_mono = None

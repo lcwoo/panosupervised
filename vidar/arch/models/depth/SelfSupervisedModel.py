@@ -38,7 +38,7 @@ class SelfSupervisedModel(BaseModel, ABC):
             else:
                 raise NotImplementedError('Invalid camera type')
 
-    def forward(self, batch, epoch=0):
+    def forward(self, batch, epoch=0, return_logs=False):
         """Model forward pass"""
 
         rgb = batch['rgb']

@@ -2,9 +2,9 @@
 
 from collections import OrderedDict
 from datetime import datetime
+from tqdm import tqdm
 
 import torch
-from tqdm import tqdm
 
 from vidar.core.checkpoint import ModelCheckpoint
 from vidar.core.logger import WandbLogger
@@ -130,8 +130,9 @@ class Trainer:
         """Prepare logger and checkpoint class if requested"""
         add_logger = cfg_has(cfg, 'wandb')
         add_checkpoint = cfg_has(cfg, 'checkpoint')
+        dry_run = cfg_has(cfg, 'dry_run', False)
 
-        if add_logger:
+        if add_logger and not dry_run:
             self.logger = WandbLogger(cfg.wandb, verbose=True)
             if add_checkpoint and not cfg_has(cfg.checkpoint, 'name'):
                 cfg.checkpoint.name = self.logger.run_name
@@ -398,11 +399,13 @@ class Trainer:
             optimizer.zero_grad()
 
         # Loop through all batches
+        dataset = wrapper.datasets['train']
         for i, batch in progress_bar:
 
             # Send samples to GPU and take a training step
             batch = sample_to_cuda(batch, self.proc_rank)
-            output = wrapper.training_step(batch, epoch=self.current_epoch)
+            return_logs = self.logger.require_log_images(batch, 'train', dataset) if self.logger else False
+            output = wrapper.training_step(batch, epoch=self.current_epoch, return_logs=return_logs)
 
             # Step optimizer
             if wrapper.update_schedulers == 'step':
@@ -422,10 +425,15 @@ class Trainer:
                     else:
                         scaler.step(optimizer)
                 else:
-                    print('NAN DETECTED!', i, batch['idx'])
+                    print0('NaN DETECTED!', i, batch['idx'])
                 optimizer.zero_grad()
             if scaler is not None:
                 scaler.update()
+
+            if self.logger and return_logs:
+                self.logger.log_data('train', batch, output, dataset,
+                                    'epoch_{}/iter_{}'.format(self.current_epoch, i))
+                self.logger.push()
 
             self.update_averages(output)
             self.update_train_progress_bar(progress_bar)
@@ -449,11 +457,13 @@ class Trainer:
             for batch_idx, batch in progress_bar:
                 # Send batch to GPU and take a validation step
                 batch = sample_to_cuda(batch, self.proc_rank)
-                output, results = wrapper.validation_step(batch, epoch=self.current_epoch)
+                return_logs = self.logger.require_log_images(batch, 'val', dataset) if self.logger else False
+                output, results = wrapper.validation_step(batch, epoch=self.current_epoch,
+                                                                 return_logs=return_logs)
                 if 'batch' in output:
                     batch = output['batch']
                 batch_outputs += results
-                if self.logger:
+                if self.logger and return_logs:
                     self.logger.log_data('val', batch, output, dataset, prefix)
                 if self.saver:
                     self.saver.save_data(batch, output, prefix)

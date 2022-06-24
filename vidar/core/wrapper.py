@@ -140,7 +140,7 @@ class Wrapper(torch.nn.Module, ABC):
         # Return optimizer and scheduler
         return optimizers, schedulers
 
-    def run_arch(self, batch, epoch, flip, unflip):
+    def run_arch(self, batch, epoch, flip, unflip, return_logs=False):
         """
         Run model on a batch
 
@@ -154,6 +154,8 @@ class Wrapper(torch.nn.Module, ABC):
             Batch should be flipped
         unflip : Bool
             Output should be unflipped
+        return_logs: Bool
+            If True, return data
 
         Returns
         -------
@@ -161,28 +163,30 @@ class Wrapper(torch.nn.Module, ABC):
             Dictionary with model outputs
         """
         batch = flip_batch(batch) if flip else batch
-        output = self.arch(batch, epoch=epoch)
+        output = self.arch(batch, epoch=epoch, return_logs=return_logs)
         return flip_output(output) if flip and unflip else output
 
-    def training_step(self, batch, epoch):
+    def training_step(self, batch, epoch, return_logs=False):
         """Processes a training batch"""
         flip_lr = False if self.flip_lr_prob == 0 else \
             random.random() < self.flip_lr_prob
 
+        # TODO(soonminh): draw inputs for debugging
+        # from vidar.utils.write import draw_inputs
+        # figure = draw_inputs(batch)
+
         if self.mixed_precision:
             with torch.cuda.amp.autocast():
-                output = self.run_arch(batch, epoch=epoch, flip=flip_lr, unflip=False)
+                output = self.run_arch(batch, epoch=epoch, flip=flip_lr, unflip=False, return_logs=return_logs)
         else:
-            output = self.run_arch(batch, epoch=epoch, flip=flip_lr, unflip=False)
-
-        losses = {key: val for key, val in output.items() if key.startswith('loss')}
+            output = self.run_arch(batch, epoch=epoch, flip=flip_lr, unflip=False, return_logs=return_logs)
 
         return {
-            **losses,
-            'metrics': output['metrics']
+            'metrics': output['metrics'],
+            **output,
         }
 
-    def validation_step(self, batch, epoch):
+    def validation_step(self, batch, epoch, return_logs=False):
         """Processes a validation batch"""
         # from vidar.utils.data import break_batch
         # batch = break_batch(batch)
@@ -193,9 +197,9 @@ class Wrapper(torch.nn.Module, ABC):
                 flipped_output = None if not self.validate_flipped else \
                     self.run_arch(batch, epoch=epoch, flip=True, unflip=True)
         else:
-            output = self.run_arch(batch, epoch=epoch, flip=False, unflip=False)
+            output = self.run_arch(batch, epoch=epoch, flip=False, unflip=False, return_logs=return_logs)
             flipped_output = None if not self.validate_flipped else \
-                self.run_arch(batch, epoch=epoch, flip=True, unflip=True)
+                self.run_arch(batch, epoch=epoch, flip=True, unflip=True, return_logs=return_logs)
 
         if 'batch' in output:
             batch = output['batch']

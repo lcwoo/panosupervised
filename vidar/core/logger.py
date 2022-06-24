@@ -129,6 +129,10 @@ class WandbLogger:
             self.experiment.log(self._metrics)
             self._metrics.clear()
 
+    def push(self):
+        self.experiment.log(self._metrics)
+        self._metrics.clear()
+
     def log_images(self, batch, output, prefix, ontology=None):
         """
         Log images depending on its nature
@@ -144,6 +148,9 @@ class WandbLogger:
         ontology : Dict
             Dictionary with ontology information
         """
+        for key, image in output.pop('log_images', {}).items():
+            self._metrics.update(prep_image(key, prefix, image))
+
         for data, suffix in zip([batch, output['predictions']], ['-gt', '-pred']):
             for key in data.keys():
                 if key.startswith('rgb'):
@@ -183,16 +190,20 @@ class WandbLogger:
                 #     # Log score as image heatmap
                 #     self._metrics.update(log_keypoint_score(key, prefix, data))
 
-    def log_data(self, mode, batch, output, dataset, prefix, ontology=None):
-        """Helper function used to log images"""
+    def require_log_images(self, batch, mode, dataset):
         idx = batch['idx'][0]
         num_logs = self.num_logs[mode]
-        if num_logs > 0:
-            interval = (len(dataset) // world_size() // num_logs) * world_size()
-            if interval == 0 or (idx % interval == 0 and idx < interval * num_logs):
-                prefix = '{}-{}-{}'.format(mode, prefix, batch['idx'][0].item())
-                # batch, output = prepare_logging(batch, output)
-                self.log_images(batch, output, prefix, ontology=ontology)
+        if num_logs == 0:
+            return False
+        interval = (len(dataset) // world_size() // num_logs) * world_size()
+        return (interval == 0 or (idx % interval == 0 and idx < interval * num_logs))
+
+    def log_data(self, mode, batch, output, dataset, prefix, ontology=None):
+        """Helper function used to log images"""
+        if self.require_log_images(batch, mode, dataset):
+            prefix = '{}/{}-{}'.format(mode, prefix, batch['idx'][0].item())
+            # batch, output = prepare_logging(batch, output)
+            self.log_images(batch, output, prefix, ontology=ontology)
 
 
 def recursive_convert_config(cfg):
@@ -212,7 +223,7 @@ def prep_image(key, prefix, image):
         if image.dim() == 4:
             image = image[0]
         image = image.detach().permute(1, 2, 0).cpu().numpy()
-    prefix_key = '{}-{}'.format(prefix, key)
+    prefix_key = '{}/{}'.format(prefix, key)
     return {prefix_key: wandb.Image(image, caption=key)}
 
 

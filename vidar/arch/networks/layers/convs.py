@@ -10,6 +10,11 @@ def upsample(x):
     """Upsample input tensor by a factor of 2"""
     return F.interpolate(x, scale_factor=2, mode="nearest")
 
+def downsample(x):
+    """Downsample input tensor by a factor of 2
+    """
+    return F.interpolate(x, scale_factor=0.5, mode="nearest", recompute_scale_factor=True)
+
 
 class ConvBlock(nn.Module, ABC):
     """Layer to perform a convolution followed by ELU"""

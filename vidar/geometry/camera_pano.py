@@ -22,8 +22,8 @@ class PanoCamera(Camera):
     Tcw : Pose or torch.Tensor
         Camera pose (camera to world) [B,4,4]
     """
-    def __init__(self, K, hw, Twc=None, Tcw=None):
-        super().__init__(K, hw, Twc, Tcw)
+    def __init__(self, K, hw, Twc=None, Tcw=None, name=''):
+        super().__init__(K, hw, Twc, Tcw, name)
 
         # TODO(sohwang): read rho from config
         self.rho = 1.0
@@ -54,7 +54,7 @@ class PanoCamera(Camera):
         fy = - camera_cfg['height'] / (z_max - z_min)
         ty =   camera_cfg['height'] * (1 + z_min / (z_max - z_min))
 
-        hw = (camera_cfg['height'], camera_cfg['width'])
+        hw = [camera_cfg['height'], camera_cfg['width']]
         K = torch.FloatTensor([
             [fx,  0, tx],
             [ 0, fy, ty],

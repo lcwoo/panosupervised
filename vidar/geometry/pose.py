@@ -1,6 +1,7 @@
 # TRI-VIDAR - Copyright 2022 Toyota Research Institute.  All rights reserved.
 
 import torch
+import torch.nn as nn
 
 from vidar.geometry.pose_utils import invert_pose, pose_vec2mat, to_global_pose, euler2mat
 from vidar.utils.types import is_int
@@ -41,7 +42,7 @@ def from_dict_batch(T, **kwargs):
     return {key: torch.stack([v[key] for v in pose_batch], 0) for key in pose_batch[0]}
 
 
-class Pose:
+class Pose(nn.Module):
     """
     Pose class for 3D operations
 
@@ -51,6 +52,7 @@ class Pose:
         Transformation matrix [B,4,4], or batch size (poses initialized as identity)
     """
     def __init__(self, T=1):
+        super().__init__()
         if is_int(T):
             T = torch.eye(4).repeat(T, 1, 1)
         self.T = T if T.dim() == 3 else T.unsqueeze(0)

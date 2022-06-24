@@ -29,7 +29,7 @@ class Camera(nn.Module, ABC):
     Tcw : Pose or torch.Tensor
         Camera pose (camera to world) [B,4,4]
     """
-    def __init__(self, K, hw, Twc=None, Tcw=None):
+    def __init__(self, K, hw, Twc=None, Tcw=None, name=''):
         super().__init__()
 
         # Asserts
@@ -68,6 +68,8 @@ class Camera(nn.Module, ABC):
         if is_tensor(self._hw):
             self._hw = self._hw.shape[-2:]
 
+        self.name = name
+
     def __getitem__(self, idx):
         """Return batch-wise pose"""
         if is_seq(idx):
@@ -82,18 +84,6 @@ class Camera(nn.Module, ABC):
     def __len__(self):
         """Return length as intrinsics batch"""
         return self._K.shape[0]
-
-    def __eq__(self, cam):
-        """Check if two cameras are the same"""
-        if not isinstance(cam, type(self)):
-            return False
-        if self._hw[0] != cam.hw[0] or self._hw[1] != cam.hw[1]:
-            return False
-        if not torch.allclose(self._K, cam.K):
-            return False
-        if not torch.allclose(self._Twc.T, cam.Twc.T):
-            return False
-        return True
 
     def clone(self):
         """Return a copy of this camera"""
@@ -259,7 +249,8 @@ class Camera(nn.Module, ABC):
         return type(self)(
             K=scale_intrinsics(self._K, scale_factor),
             hw=[int(self._hw[i] * scale_factor[i]) for i in range(len(self._hw))],
-            Twc=self._Twc
+            Twc=self._Twc,
+            name=self.name,
         )
 
     def offset_start(self, start):
@@ -392,7 +383,7 @@ class Camera(nn.Module, ABC):
         else:
             return points.view(-1, 3, d, h, w)
 
-    def project_points(self, points, from_world=True, normalize=True, return_z=False):
+    def project_points(self, points, from_world=True, normalize=True, return_z=False, return_valid=False):
         """
         Project points back to image plane
 
@@ -432,10 +423,13 @@ class Camera(nn.Module, ABC):
                 invalid = (coords[:, 0] < -1) | (coords[:, 0] > 1) | \
                           (coords[:, 1] < -1) | (coords[:, 1] > 1) | (depth < 0)
                 coords[invalid.unsqueeze(1).repeat(1, 2, 1)] = -2
+
+            out = [coords.permute(0, 2, 1)]
             if return_z:
-                return coords.permute(0, 2, 1), depth
-            else:
-                return coords.permute(0, 2, 1)
+                out += [depth]
+            if normalize and return_valid:
+                out += [~invalid.unsqueeze(1).permute(0, 2, 1)]
+            return out
 
         coords = coords.view(b, 2, *hw)
         depth = depth.view(b, 1, *hw)
@@ -446,10 +440,13 @@ class Camera(nn.Module, ABC):
                       (coords[:, 1] < -1) | (coords[:, 1] > 1) | (depth[:, 0] < 0)
             coords[invalid.unsqueeze(1).repeat(1, 2, 1, 1)] = -2
 
+        out = [coords.permute(0, 2, 3, 1)]
         if return_z:
-            return coords.permute(0, 2, 3, 1), depth
-        else:
-            return coords.permute(0, 2, 3, 1)
+            out += [depth]
+        if normalize and return_valid:
+            out += [~invalid.unsqueeze(1).permute(0, 2, 3, 1)]
+        return out
+
 
     def project_cost_volume(self, points, from_world=True, normalize=True):
         """

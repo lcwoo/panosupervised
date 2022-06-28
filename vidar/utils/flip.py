@@ -131,7 +131,8 @@ def flip_batch(batch, flip=True):
     if is_seq(batch):
         return [flip_batch(b) for b in batch]
     # If it's a dict, repeat
-    if is_dict(batch):
+    # HACK(soonminh): for backward compatibility (single-camera models)
+    if 'filename' not in batch and is_dict(batch):
         return {k: flip_batch(v) for k, v in batch.item()}
     # Flip batch
     flipped_batch = {}

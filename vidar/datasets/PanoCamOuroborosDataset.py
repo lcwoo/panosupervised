@@ -80,20 +80,9 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         super().__init__(*args, **kwargs)
 
         self.pano_name = pano_cfg.name
+        self.pano_cfg = pano_cfg.dict
 
-        # TODO(soonminh): cleaning up code
-        params = PanoCamera.params_from_config(pano_cfg.dict)
-        self.pano_K = params['K']
-        self.pano_hw = params['hw']
-        self.pano_Twc = params['Twc']
-        self.pano_Tcw = self.pano_Twc.inverse()
-        self.pano_cam = PanoCamera(self.pano_K[None], self.pano_hw, Twc=self.pano_Twc[None])
-
-        self.pano_K = self.pano_K.numpy()
-        self.pano_Twc = self.pano_Twc.numpy()
-        self.pano_Tcw = self.pano_Tcw.numpy()
-
-    def create_pano_proj_maps(self, filename, depth_idx, depth_type):
+    def create_pano_proj_maps(self, filename, K, hw, Twc, depth_idx, depth_type):
         """
         Creates the depth map for a camera by projecting LiDAR information.
         It also caches the depth map following DGP folder structure, so it's not recalculated
@@ -132,7 +121,7 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         world_points = (lidar_extrinsics * lidar_points).T
 
         # Create camera
-        camera = self.pano_cam
+        camera = PanoCamera(K[None], hw, Twc=Twc[None])
         world_points = torch.FloatTensor(world_points[None])
 
         # Generate depth maps
@@ -144,26 +133,30 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
     def __getitem__(self, idx):
         samples = super().__getitem__(idx)
         filename_chunk = self.get_filename(idx, 0).split('/')
-        filename_chunk[-2] = os.path.join(PANO_CAMERA_NAME.lower(), self.pano_name)
+        filename_chunk[-2] = os.path.join(PANO_CAMERA_NAME.upper(), self.pano_name)
         filename = '/'.join(filename_chunk)
 
         # TODO(soonminh): follow the same convention with OuroborosDataset
         # e.g. some entities such as intrinsics and depth should be dicts by context index
+        params = PanoCamera.params_from_config(self.pano_cfg)
+        hw = params['hw']
+        K = params['K']
+        Twc = params['Twc']
         samples[PANO_CAMERA_NAME.lower()] = {
             'filename': filename,
-            'hw': self.pano_hw,
-            'intrinsics': self.pano_K,
-            'Twc': self.pano_Twc,
+            'hw': hw,
+            'intrinsics': K,
+            'Twc': Twc,
         }
 
         for i in range(self.num_cameras):
             camera = self.get_current('datum_name', i).lower()
-            pose_to_pano = (torch.FloatTensor(samples[camera]['extrinsics'][0]) @ self.pano_Tcw).inverse()
-            samples[camera]['pose_to_pano'] = {0: pose_to_pano.numpy()}
+            pose_to_pano = Twc @ torch.FloatTensor(samples[camera]['extrinsics'][0]).inverse()
+            samples[camera]['pose_to_pano'] = {0: pose_to_pano}
 
         if self.with_depth:
-            depth = self.create_pano_proj_maps(filename, self.depth_idx, self.depth_type)
-            depth = resize_npy_preserve(depth, self.pano_hw, expand_dims=False)
+            depth = self.create_pano_proj_maps(filename, K, hw, Twc, self.depth_idx, self.depth_type)
+            depth = resize_npy_preserve(depth, hw, expand_dims=False)
             samples[PANO_CAMERA_NAME.lower()]['depth'] = depth.astype(np.float32)[None]
 
         return samples
@@ -192,7 +185,7 @@ if __name__ == '__main__':
         'depth_type': 'lidar',
         'repeat': 1,
         'pano_cam_config': Config(**{
-            'name': 'standard',
+            'name': 'panocam_150_z_-02_+02',
             'height': height_pano,
             'width': width_pano,
             'position_in_world': [0, 0, 1.5],

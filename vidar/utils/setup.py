@@ -271,7 +271,7 @@ def no_collate(batch):
 
 
 @iterate1
-def setup_dataloader(dataset, cfg, mode):
+def setup_dataloader(dataset, cfg, mode, verbose=True):
     """
     Create a dataloader class
 
@@ -291,10 +291,22 @@ def setup_dataloader(dataset, cfg, mode):
     """
     ddp = dist_mode() == 'ddp'
     shuffle = 'train' in mode
+    batch_size = cfg_has(cfg, 'batch_size', 1)
+    pin_memory = cfg_has(cfg, 'pin_memory', True)
+    num_workers = cfg_has(cfg, 'num_workers', 8)
+
+    if verbose:
+        string = f'#### DataLoader ({dataset.__class__.__name__}, {mode}): \n\t'
+        string += f' batch_size: {batch_size} (x {world_size()})'
+        string += f' | pin_memory: {pin_memory}'
+        string += f' | num_workers: {num_workers}'
+        string += f' | shuffle: {shuffle}'
+        print0(pcolor(string , color='blue', attrs=('dark', 'bold')))
+
     return DataLoader(dataset,
-        batch_size=cfg_has(cfg, 'batch_size', 1),
-        pin_memory=cfg_has(cfg, 'pin_memory', True),
-        num_workers=cfg_has(cfg, 'num_workers', 8),
+        batch_size=batch_size,
+        pin_memory=pin_memory,
+        num_workers=num_workers,
         worker_init_fn=worker_init_fn,
         shuffle=False if ddp else shuffle,
         sampler=get_datasampler(dataset, shuffle=shuffle) if ddp else None,

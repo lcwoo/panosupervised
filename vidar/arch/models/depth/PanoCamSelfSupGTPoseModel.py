@@ -13,6 +13,8 @@ class PanoCamSelfSupGTPoseModel(BaseModel):
     """
     def __init__(self, cfg):
         super().__init__(cfg)
+
+        self.gt_pose = True
         self._input_keys = ('rgb', 'intrinsics', 'pose_to_pano')
 
     def forward(self, batch, return_logs=False, **kwargs):

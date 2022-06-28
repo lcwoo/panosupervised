@@ -2,6 +2,7 @@
 
 import numpy as np
 from collections import defaultdict
+from functools import partial
 
 import torch
 import torch.nn.functional as F
@@ -15,7 +16,7 @@ from vidar.geometry.camera_pano import PanoCamera
 from vidar.utils.config import cfg_has
 from vidar.utils.depth import inv2depth, depth2inv
 from vidar.utils.distributed import print0
-from vidar.utils.tensor import match_scales, make_same_resolution
+from vidar.utils.tensor import interpolate, match_scales, make_same_resolution
 from vidar.utils.viz import viz_photo
 from vidar.utils.write import viz_depth
 
@@ -46,6 +47,11 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
         self.flow_downsampling = cfg_has(cfg, 'flow_downsampling', False)
 
         self.log_images = defaultdict(list)
+
+        self.interpolate = None
+        if cfg_has(cfg, 'upsample_depth', False):
+            self.interpolate = partial(
+                interpolate, mode='bilinear', scale_factor=None, align_corners=True)
 
     def get_context_and_pose(self, batch_cam, context_idx):
         """Pose: from (ref_cam, context_idx) to (world, 0)"""
@@ -198,6 +204,9 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
 
     def forward(self, batch, output, return_logs=False, use_gtpose=True):
         pano_depths = inv2depth(output['inv_depths'])
+        if self.interpolate is not None:
+            pano_depths = self.interpolate(pano_depths, pano_depths[0].shape[-2:])
+
         if return_logs:
             self.log_images.clear()
             self.log_images['panodepth'].append(
@@ -267,6 +276,7 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
                         (contexts_tgt_warped[0][0].permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
                     self.log_images['warped_{}'.format(cam_tgt)].append(
                         (masks_src_warped[0][0].repeat(3, 1, 1).permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
+
                     self.log_images['panodepth'].append(
                         (contexts_src_on_pano[0][0].permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
 

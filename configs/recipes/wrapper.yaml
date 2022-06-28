@@ -8,3 +8,4 @@ default:
     validate_first: False
     validate_flipped: True
     sync_batch_norm: True
+    grad_accumulate_batches: 0

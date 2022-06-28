@@ -79,6 +79,16 @@ class Trainer:
         self.validate_first = cfg_has(cfg.wrapper, 'validate_first', False)
         self.find_unused_parameters = cfg_has(cfg.wrapper, 'find_unused_parameters', False)
         self.grad_scaler = cfg_has(cfg.wrapper, 'grad_scaler', False) and torch.cuda.is_available()
+        self.grad_accumulate = cfg_has(cfg.wrapper, 'grad_accumulate_batches', 0)
+
+        if self.grad_accumulate:
+            font1 = {'color': 'blue', 'attrs': ('dark', 'bold')}
+            font2 = {'color': 'blue', 'attrs': ('bold',)}
+            print0(pcolor(f'### ', **font1) +
+                   pcolor(f'Accumulate gradients ', **font2) +
+                   pcolor(f'from ', **font1) +
+                   pcolor(f'{self.grad_accumulate}', **font2) +
+                   pcolor(f' batches', **font1))
 
         self.saver = self.logger = self.checkpoint = None
         self.prep_logger_and_checkpoint(cfg)
@@ -285,7 +295,6 @@ class Trainer:
         }
 
         # Prepare prefixes
-
         prefixes = {
             key: [self.exp_launch_time + '_' + dataset_prefix(wrapper.datasets_cfg[key][n], n) for n in range(len(val))]
             for key, val in wrapper.datasets_cfg.items() if 'name' in wrapper.datasets_cfg[key][0].__dict__.keys()
@@ -407,16 +416,32 @@ class Trainer:
             return_logs = self.logger.require_log_images(batch, 'train', dataset) if self.logger else False
             output = wrapper.training_step(batch, epoch=self.current_epoch, return_logs=return_logs)
 
-            # Step optimizer
-            if wrapper.update_schedulers == 'step':
-                for scheduler in schedulers.values():
-                    scheduler.step()
-
-            # Backprop through loss
-            if scaler is None:
-                output['loss'].backward()
+            ####################################################################################
+            # If training uses gradient accumulation over N steps,
+            # then all-reduce is not necessary after every training step,
+            # it’s only required to perform all-reduce after the last call to backward,
+            # just before the execution of the optimizer.
+            #
+            # DistributedDataParallel provides no_sync() context manager which disables
+            # gradient all-reduce for particular iteration. no_sync() should be applied to
+            # first N-1 iterations of gradient accumulation, the last iteration should follow
+            # the default execution and perform the required gradient all-reduce.
+            #
+            # Reference: PyTorch performance tuning guide by Szymon Migacz
+            ####################################################################################
+            if self.grad_accumulate and (i % self.grad_accumulate > 0) and (i < len(progress_bar) - 1):
+                with wrapper.arch.no_sync():
+                    # Backprop through loss
+                    if scaler is None:
+                        (output['loss'] / self.grad_accumulate).backward()
+                    else:
+                        scaler.scale(output['loss'] / self.grad_accumulate).backward()
+                continue
             else:
-                scaler.scale(output['loss']).backward()
+                if scaler is None:
+                    output['loss'].backward()
+                else:
+                    scaler.scale(output['loss']).backward()
 
             for optimizer in in_optimizers.values():
                 if not output['loss'].isnan().any():
@@ -427,6 +452,12 @@ class Trainer:
                 else:
                     print0('NaN DETECTED!', i, batch['idx'])
                 optimizer.zero_grad()
+
+            # Step optimizer
+            if wrapper.update_schedulers == 'step':
+                for scheduler in schedulers.values():
+                    scheduler.step()
+
             if scaler is not None:
                 scaler.update()
 

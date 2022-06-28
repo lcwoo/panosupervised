@@ -28,6 +28,8 @@ def main_worker(gpu, cfg):
     torch.cuda.set_device(gpu)
     world_size = torch.cuda.device_count()
 
+    # https://pytorch.org/docs/stable/distributed.html
+    # os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"  # may impact the application performance
     os.environ['RANK'] = str(gpu)
     os.environ['WORLD_SIZE'] = str(world_size)
     os.environ['MASTER_ADDR'] = 'localhost'

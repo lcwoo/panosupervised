@@ -3,6 +3,7 @@ wrapper:
     flip_lr_prob: 0.0
     # validate_first: True
     validate_flipped: False
+    # max_epochs: 50
 arch:
     model:
         file: depth/PanoCamSelfSupGTPoseModel
@@ -11,12 +12,10 @@ arch:
             recipe: networks/multicam_depth_net|panodepth_ddad
             min_depth: 2.0
             max_depth: 200.0
-        pose:
-            recipe: networks/conv_pose_net|default
     losses:
         reprojection:
-            recipe: losses/reprojection|panodepth
-            automask_loss: False
+            recipe: losses/reprojection|panodepth_mono_stereo
+            automask_loss: True
         smoothness:
             recipe: losses/smoothness|default
 evaluation:
@@ -26,29 +25,42 @@ evaluation:
 optimizers:
     depth:
         recipe: optimizers|adam_20_05
-    pose:
-        recipe: optimizers|adam_20_05
+        # scheduler:
+        #   step_size: 40
 datasets:
     train:
         recipe: datasets/ddad|train_selfsup_panodepth
+        # recipe: datasets/ddad_tiny|train_selfsup_panodepth
+        # pano_cam_config:
+        #   recipe: cameras/pano_cam|panocam1
         labels: [depth, pose]
-        # augmentation:
-        #   jittering: [0.4, 0.4, 0.4, 0.05]
+        augmentation:
+          # resize: [768, 1280]
+          # resize: [576, 960]
+          resize: [384, 640]
         repeat: [1]
         dataloader:
-          # (DDP) The batch size should be larger than the number of GPUs used locally.
+          # pin_memory: False   # If True (default), requires ~60GB RAM per 8 workers
           batch_size: 1
-          num_workers: 20
+          num_workers: 16
     validation:
         recipe: datasets/ddad|validation_panodepth
+        # recipe: datasets/ddad_tiny|validation_panodepth
+        # pano_cam_config:
+        #   recipe: cameras/pano_cam|panocam1
         labels: [depth, pose]
+        augmentation:
+          # resize: [768, 1280]
+          # resize: [576, 960]
+          resize: [384, 640]
         dataloader:
+          # pin_memory: False
           batch_size: 1
-          num_workers: 20
+          num_workers: 16
 wandb:
     recipe: wandb|default
-    project: vidar_panodepth_dev
-    tags: ['panodepth', '220624']
+    project: vidar_panodepth_gcp
+    tags: ['220629', 'loss_on_image', 'loss_on_pano', 'reproj_mono_stereo']
     num_validation_logs: 10
 checkpoint:
     recipe: checkpoint|default_local

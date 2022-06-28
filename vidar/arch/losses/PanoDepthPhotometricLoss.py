@@ -19,6 +19,7 @@ from vidar.utils.tensor import match_scales, make_same_resolution
 from vidar.utils.viz import viz_photo
 from vidar.utils.write import viz_depth
 
+
 class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
     def __init__(self, cfg):
         super().__init__(cfg)
@@ -41,19 +42,19 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
         self.stereo_weight = cfg_has(cfg, 'stereo_weight', 0.1)
 
         self.flow_reverse = FlowReversal()
+        self.flow_downsampling = cfg_has(cfg, 'flow_downsampling', False)
+
         self.log_images = defaultdict(list)
 
     def get_context_and_pose(self, batch_cam, context_idx):
         """Pose: from (ref_cam, context_idx) to (world, 0)"""
         raw_rgb_key = 'raw_rgb' if self.training else 'rgb'
         context = batch_cam[raw_rgb_key][context_idx]
-        if context_idx == 0:
-            # Cam to world (t=0)
-            pose = batch_cam['extrinsics'][0].inverse()
-        else:
+        # Cam to world (t=0)
+        pose = batch_cam['extrinsics'][0].inverse()
+        if context_idx != 0:
             # Pose from t=context to t=0, then cam to world (t=0)
-            pose = batch_cam['extrinsics'][0].inverse() @ batch_cam['pose'][context_idx].inverse()
-
+            pose = pose @ batch_cam['pose'][context_idx].inverse()
         return context, pose
 
     def get_camera(self, batch, cam_name, context_idx, Tcw):
@@ -68,31 +69,29 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
         """
         pano_width = pano_camera.hw[1]
 
-        downsample_ratio = 0.5
-        upsample_ratio = int(1 / downsample_ratio)
+        if self.flow_downsampling:
+            downsample_ratio = 0.5
+            upsample_ratio = int(1 / downsample_ratio)
+        else:
+            downsample_ratio = upsample_ratio = 1.0
 
         imag_depths = []
         for i in range(self.n):
             DW = pano_depths[i].shape[3]
             scale_factor = DW / float(pano_width)
-            # scaled_imag_shape = [int(num * scale_factor * downsample_ratio) for num in imag_camera.hw]
-            scaled_imag_shape = [int(num * scale_factor) for num in imag_camera.hw]
+            scaled_imag_shape = [int(num * scale_factor * downsample_ratio) for num in imag_camera.hw]
 
-            # HACK(soonminh): get downsampled imag_depth from flow_reverse, then upsample it to save computation
+            # Get downsampled imag_depth from flow_reverse, then upsample it to save computation
             camobj_pano = pano_camera.scaled(scale_factor)
-            # camobj_imag = imag_camera.scaled(scale_factor * downsample_ratio)
-            camobj_imag = imag_camera.scaled(scale_factor)
+            camobj_imag = imag_camera.scaled(scale_factor * downsample_ratio)
 
             world_points = camobj_pano.reconstruct_depth_map(pano_depths[i], to_world=True)
-            coords, valid = camobj_imag.project_points(world_points, from_world=True, normalize=True, return_valid=True)
-
-            # This causes center-dot artifact
-            # coords[..., 0] = coords[..., 0] * valid[..., 0].float()
-            # coords[..., 1] = coords[..., 1] * valid[..., 0].float()
+            coords = camobj_imag.project_points(world_points, from_world=True, normalize=True)[0]
 
             imag_depth, weights = self.flow_reverse(pano_depths[i], coords, dst_img_shape=scaled_imag_shape)
-            # imag_depth = F.interpolate(imag_depth, scale_factor=upsample_ratio, mode='bicubic', align_corners=True)
-            # weights = F.interpolate(weights, scale_factor=upsample_ratio, mode='bicubic', align_corners=True)
+            if self.flow_downsampling:
+                imag_depth = F.interpolate(imag_depth, scale_factor=upsample_ratio, mode='bicubic', align_corners=True)
+                weights = F.interpolate(weights, scale_factor=upsample_ratio, mode='bicubic', align_corners=True)
             imag_depths.append(imag_depth / (weights + 1e-6))
 
             if return_logs and i == 0:
@@ -145,7 +144,7 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
                 return stacked_losses.mean(1, True)
             elif self.photometric_reduce_op == 'min':
                 # we need to ignore 'zero' loss because that means no-supervision!
-                # HACK(sohwang): better way to compute non-zero mean while keeping all dimensions?
+                # HACK(sohwang): better way to compute non-zero min?
                 zero_loss = stacked_losses == 0
                 stacked_losses[zero_loss] = torch.finfo(stacked_losses.dtype).max
                 min_stacked_losses = stacked_losses.min(1, True)[0]
@@ -156,9 +155,7 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
                     'Unknown photometric_reduce_op: {}'.format(self.photometric_reduce_op))
 
         def spatial_reduce_func(losses):
-            # TODO(sohwang): allow different reduce_op across spatial dimensions
-            # TODO(sohwang): to keep original implementation, support 'mean' only for now.
-            return losses.mean()
+            return losses[losses > 0.0].mean()
 
         def scale_reduce_func(losses):
             return sum(losses) / self.n
@@ -167,8 +164,6 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
         view_reduced_loss = [view_reduce_func(photometric_losses[i]) for i in range(self.n)]
         spatial_reduced_loss = [spatial_reduce_func(view_reduced_loss[i]) for i in range(self.n)]
         photometric_loss = scale_reduce_func(spatial_reduced_loss)
-
-        # Return reduced photometric loss
         return (photometric_loss, None) if not debug else (photometric_loss, view_reduced_loss)
 
     def calc_smoothness_loss_masked(self, inv_depths, images, masks):
@@ -203,7 +198,6 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
     def forward(self, batch, output, return_logs=False, use_gtpose=True):
         pano_depths = inv2depth(output['inv_depths'])
         if return_logs:
-            print0(f'(pano_depth) min: {pano_depths[0].min()} / max: {pano_depths[0].max()}')
             self.log_images.clear()
             self.log_images['panodepth'].append(
                 (viz_depth(pano_depths[0][0, 0].detach().cpu()) * 255.0).astype(np.uint8))
@@ -280,14 +274,10 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
                         photometric_losses[i].append(unwarped_image_loss[i])
 
             loss, per_pixel_loss = self.reduce_photometric_loss(photometric_losses, debug=return_logs)
-            # if loss.isnan().any() or loss.isinf().any() or \
-            #     (return_logs and any([l.isnan().any() or l.isinf().any() for l in per_pixel_loss])):
-            #     import pdb; pdb.set_trace()
 
             if return_logs:
                 self.log_images['warped_{}'.format(cam_tgt)].append(
                     (torch.sigmoid(per_pixel_loss[0].detach().float()).repeat(1, 3, 1, 1)[0].permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8))
-                    # (viz_photo(per_pixel_loss[0][0, 0].detach().cpu().numpy()) * 255.0).astype(np.uint8))
 
             # TODO(soonminh): apply per-pixel weights depending on where the loss comes from
             # if cam_tgt == cam_src:

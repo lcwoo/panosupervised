@@ -1,0 +1,52 @@
+### Definition of photometric reprojection loss pairs: list of tuples
+# tuple: (target, target_context_idx, source, source_context_idx)
+#   - context_idx: -1 (backward), 0 (current), 1 (forward)
+#   - From "panodepth" prediction, we use flow reversal layer to reconstruct target_depth.
+#     then, use the target_depth to calculate reprojection from source
+pairs_mono_only:
+  reprojection_pairs: [
+    ['camera_01', 0, 'camera_01', -1],
+    ['camera_05', 0, 'camera_05', -1],
+    ['camera_06', 0, 'camera_06', -1],
+    ['camera_07', 0, 'camera_07', -1],
+    ['camera_08', 0, 'camera_08', -1],
+    ['camera_09', 0, 'camera_09', -1],
+
+    ['camera_01', 0, 'camera_01', 1],
+    ['camera_05', 0, 'camera_05', 1],
+    ['camera_06', 0, 'camera_06', 1],
+    ['camera_07', 0, 'camera_07', 1],
+    ['camera_08', 0, 'camera_08', 1],
+    ['camera_09', 0, 'camera_09', 1],
+  ]
+
+pairs_mono_stereo:
+  reprojection_pairs: [
+    ['camera_01', 0, 'camera_01', -1],
+    ['camera_05', 0, 'camera_05', -1],
+    ['camera_06', 0, 'camera_06', -1],
+    ['camera_07', 0, 'camera_07', -1],
+    ['camera_08', 0, 'camera_08', -1],
+    ['camera_09', 0, 'camera_09', -1],
+
+    ['camera_01', 0, 'camera_01', 1],
+    ['camera_05', 0, 'camera_05', 1],
+    ['camera_06', 0, 'camera_06', 1],
+    ['camera_07', 0, 'camera_07', 1],
+    ['camera_08', 0, 'camera_08', 1],
+    ['camera_09', 0, 'camera_09', 1],
+
+    ['camera_01', 0, 'camera_05', 0],
+    ['camera_01', 0, 'camera_06', 0],
+    ['camera_05', 0, 'camera_01', 0],
+    ['camera_05', 0, 'camera_07', 0],
+    ['camera_06', 0, 'camera_01', 0],
+    ['camera_06', 0, 'camera_08', 0],
+    ['camera_07', 0, 'camera_05', 0],
+    ['camera_07', 0, 'camera_09', 0],
+    ['camera_08', 0, 'camera_06', 0],
+    ['camera_08', 0, 'camera_09', 0],
+    ['camera_09', 0, 'camera_07', 0],
+    ['camera_09', 0, 'camera_08', 0],
+  ]
+

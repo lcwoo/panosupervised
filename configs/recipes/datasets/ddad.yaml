@@ -1,3 +1,37 @@
+train_selfsup_front:
+    name: [Ouroboros]
+    path: [/data/datasets/DDAD/ddad_train_val/ddad.json]
+    split: [train]
+    augmentation:
+        jittering: [0.2, 0.2, 0.2, 0.05]
+        resize: [384, 640]
+    dataloader:
+        batch_size: 8
+        pin_memory: True
+        num_workers: 16
+    context: [-1,1]
+    labels: [depth]
+    cameras: [[1]]
+    depth_type: [lidar]
+    repeat: [1]
+
+validation_selfsup_front:
+    name: [Ouroboros]
+    path: [/data/datasets/DDAD/ddad_train_val/ddad.json]
+    split: [val]
+    augmentation:
+        jittering: [0.2, 0.2, 0.2, 0.05]
+        resize: [384, 640]
+    dataloader:
+        batch_size: 8
+        pin_memory: True
+        num_workers: 16
+    context: [-1,1]
+    labels: [depth]
+    cameras: [[1]]
+    depth_type: [lidar]
+    repeat: [1]
+
 train_selfsup_6cams:
     name: [Ouroboros]
     path: [/data/datasets/DDAD/ddad_train_val/ddad.json]

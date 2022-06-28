@@ -53,7 +53,7 @@ class FeatTransform(nn.Module):
         return flat_grid
 
     def to_polar(self, x, y):
-        return (x ** 2 + y ** 2).sqrt(), torch.atan2(y, x)
+        return (x ** 2 + y ** 2 + 1e-8).sqrt(), torch.atan2(y, x + 1e-8)
 
     def to_cartesian(self, rho, phi):
         return rho * torch.cos(phi), rho * torch.sin(phi)
@@ -64,7 +64,7 @@ class FeatTransform(nn.Module):
         K_out_inv = out_intrinsic.inverse()
         K_in      = in_intrinsic
 
-        xnorm_out_polar = torch.matmul(K_out_inv, self.flat_grid.repeat(B, 1, 1))
+        xnorm_out_polar = torch.matmul(K_out_inv, self.flat_grid)
 
         phi = xnorm_out_polar[:, 0]
         zz = xnorm_out_polar[:, 1]
@@ -80,8 +80,8 @@ class FeatTransform(nn.Module):
         Ci, Hi, Wi = self._in_shape
         behind_img_plane = X_cam[:, 2] < 1e-5
         Zn = X_cam[:, 2]
-        Xn = X_cam[:, 0] / Zn
-        Yn = X_cam[:, 1] / Zn
+        Xn = X_cam[:, 0] / (Zn + 1e-8)
+        Yn = X_cam[:, 1] / (Zn + 1e-8)
         Xnorm = 2 * Xn / (Wi - 1) - 1.
         Ynorm = 2 * Yn / (Hi - 1) - 1.
 

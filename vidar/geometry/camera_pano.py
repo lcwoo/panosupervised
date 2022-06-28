@@ -29,7 +29,7 @@ class PanoCamera(Camera):
         self.rho = 1.0
 
     def to_polar(self, x, y):
-        return (x ** 2 + y ** 2).sqrt(), torch.atan2(y, x)
+        return (x ** 2 + y ** 2 + 1e-8).sqrt(), torch.atan2(y, x + 1e-8)
 
     def to_cartesian(self, rho, phi):
         return rho * torch.cos(phi), rho * torch.sin(phi)
@@ -90,8 +90,6 @@ class PanoCamera(Camera):
         xnorm_polar = torch.matmul(self.invK[:, :3, :3], grid)
 
         phi, zz = xnorm_polar[:, 0], xnorm_polar[:, 1]
-        # rho = self.rho * torch.ones_like(phi)
-
         xx, yy = self.to_cartesian(self.rho, phi)
         xnorm = torch.stack([xx, yy, zz], dim=1).view(b, 3, -1)
 
@@ -132,6 +130,7 @@ class PanoCamera(Camera):
         """
         is_depth_map = points.dim() == 4
         hw = self._hw if not is_depth_map else points.shape[-2:]
+        device = points.device
 
         if is_depth_map:
             points = points.reshape(points.shape[0], 3, -1)
@@ -150,10 +149,10 @@ class PanoCamera(Camera):
 
         # Project 3D points onto the camera image plane
         points = self.K.bmm(
-            torch.stack([Xp_pi, Xp_z, torch.ones_like(Xp_pi), torch.ones_like(Xp_pi)], axis=1))
+            torch.stack([Xp_pi, Xp_z, torch.ones_like(Xp_pi, device=device), torch.ones_like(Xp_pi, device=device)], axis=1))
 
 
-        coords = points[:, :2] / (points[:, 2].unsqueeze(1) + 1e-7)
+        coords = points[:, :2] / (points[:, 2].unsqueeze(1) + 1e-8)
         # depth = points[:, 2]
         depth = Xp_rho
 

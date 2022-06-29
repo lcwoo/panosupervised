@@ -41,8 +41,9 @@ panodepth_mono_only:
     automask_loss: True
     weight: 1.0
     alpha: 0.85
-    mono_weight: 0.9
-    stereo_weight: 0.1
+    mono_weight: 0.5
+    stereo_weight: 0.5
+    pano_weight: 0.1
     recipe: losses/pairs|pairs_mono_only
 
 panodepth_mono_stereo:
@@ -61,6 +62,7 @@ panodepth_mono_stereo:
     automask_loss: True
     weight: 1.0
     alpha: 0.85
-    mono_weight: 0.9
-    stereo_weight: 0.1
+    mono_weight: 0.5
+    stereo_weight: 0.5
+    pano_weight: 0.1
     recipe: losses/pairs|pairs_mono_stereo

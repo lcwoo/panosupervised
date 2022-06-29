@@ -22,12 +22,12 @@ DOCKER_OPTS := \
 			-e OMPI_ALLOW_RUN_AS_ROOT=1 \
 			-e OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 \
 			-e NCCL_DEBUG=VERSION \
-            -e DISPLAY=${DISPLAY} \
-            -e XAUTHORITY \
-            -e NVIDIA_DRIVER_CAPABILITIES=all \
-			-v ~/.aws:/root/.aws \
-			-v /root/.ssh:/root/.ssh \
-			-v ~/.cache:/root/.cache \
+			-e DISPLAY=${DISPLAY} \
+			-e XAUTHORITY \
+			-e NVIDIA_DRIVER_CAPABILITIES=all \
+			-v ~/.aws:/home/${USER_NAME}/.aws \
+			-v ~/.ssh:/home/${USER_NAME}/.ssh \
+			-v ~/.cache:/home/${USER_NAME}/.cache \
 			-v /data:/data \
 			-v /dev/null:/dev/raw1394 \
 			-v /mnt/fsx/tmp:/tmp \

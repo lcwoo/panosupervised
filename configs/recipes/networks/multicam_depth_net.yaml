@@ -42,4 +42,5 @@ panodepth_ddad:
         use_skips: True
         activation: sigmoid
         num_ch_out: 1
+        downsample: False
 

@@ -54,6 +54,7 @@ class PanoDepthDecoder(nn.Module, ABC):
 
         ### 2. Decoder
         self.setup_decoder()
+        self.downsample = cfg_has(cfg, 'downsample', False)
 
         ### 3. Activation
         if cfg.activation == 'sigmoid':
@@ -107,8 +108,7 @@ class PanoDepthDecoder(nn.Module, ABC):
             x = self.convs[('upconv', i, 1)](x)
             if i in range(self.num_scales):
                 # HACK(soonminh): save memory & computation
-                # feat = downsample(x)
-                feat = x
+                feat = downsample(x) if self.downsample else x
                 outputs[('features', i)] = feat
                 outputs[('output', i)] = self.activation(
                     self.convs[('outconv', i)](feat))

@@ -1,10 +1,10 @@
 USER_ID ?= ${shell id -u}
+GROUP_ID ?= ${shell id -g}
 USER_NAME ?= ${shell whoami}
 
 PROJECT ?= panodepth-vidar
 WORKSPACE ?= /home/${USER_NAME}/workspace/${PROJECT}
 DOCKER_IMAGE ?= ${PROJECT}:${USER_NAME}
-CUSTOM_HDD_PATH ?= /media/soonminh/HDD8TB/
 
 SHMSIZE ?= 444G
 WANDB_MODE ?= run
@@ -34,7 +34,6 @@ DOCKER_OPTS := \
 			-v /tmp/.X11-unix:/tmp/.X11-unix \
 			-v /var/run/docker.sock:/var/run/docker.sock \
 			-v /run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro \
-			-v ${CUSTOM_HDD_PATH}:${CUSTOM_HDD_PATH} \
 			-v ${WORKSPACE}:${WORKSPACE} \
 			-w ${WORKSPACE} \
 			--privileged \
@@ -53,6 +52,7 @@ docker-build:
 	docker build \
 		--build-arg TZ=America/New_York \
 		--build-arg USER_ID=${USER_ID} \
+		--build-arg GROUP_ID=${GROUP_ID} \
 		--build-arg USER_NAME=${USER_NAME} \
 		-f docker/Dockerfile \
 		-t ${DOCKER_IMAGE} .

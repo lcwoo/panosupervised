@@ -102,10 +102,11 @@ RUN apt-get update && \
 
 # (Optional) Add user
 ARG USER_ID
+ARG GROUP_ID
 ARG USER_NAME
 RUN apt-get install -y sudo
-RUN groupadd -r ${USER_NAME} -g ${USER_ID} && \
-	useradd -u ${USER_ID} -g ${USER_NAME} -m -s /bin/bash ${USER_NAME} -p "$(openssl passwd -1 ${USER_NAME})" && \
+RUN groupadd -r ${USER_NAME} -g ${GROUP_ID} && \
+	useradd -u ${USER_ID} -g ${GROUP_ID} -m -s /bin/bash ${USER_NAME} -p "$(openssl passwd -1 ${USER_NAME})" && \
     usermod -aG sudo ${USER_NAME}
 
 WORKDIR /home/${USER_NAME}/workspace

@@ -3,7 +3,6 @@ wrapper:
     flip_lr_prob: 0.0
     # validate_first: True
     validate_flipped: False
-    # max_epochs: 50
 arch:
     model:
         file: depth/PanoCamSelfSupGTPoseModel
@@ -12,6 +11,8 @@ arch:
             recipe: networks/multicam_depth_net|panodepth_ddad
             min_depth: 2.0
             max_depth: 200.0
+            decoder:
+              downsample: True
     losses:
         reprojection:
             recipe: losses/reprojection|panodepth_mono_stereo
@@ -25,14 +26,10 @@ evaluation:
 optimizers:
     depth:
         recipe: optimizers|adam_20_05
-        # scheduler:
-        #   step_size: 40
+        lr: 0.00005
 datasets:
     train:
         recipe: datasets/ddad|train_selfsup_panodepth
-        # recipe: datasets/ddad_tiny|train_selfsup_panodepth
-        # pano_cam_config:
-        #   recipe: cameras/pano_cam|panocam1
         labels: [depth, pose]
         augmentation:
           # resize: [768, 1280]
@@ -40,14 +37,10 @@ datasets:
           resize: [384, 640]
         repeat: [1]
         dataloader:
-          # pin_memory: False   # If True (default), requires ~60GB RAM per 8 workers
-          batch_size: 1
-          num_workers: 16
+          batch_size: 2
+          num_workers: 16   # If pin_memory is True, requires ~59GB RAM per 8 workers
     validation:
         recipe: datasets/ddad|validation_panodepth
-        # recipe: datasets/ddad_tiny|validation_panodepth
-        # pano_cam_config:
-        #   recipe: cameras/pano_cam|panocam1
         labels: [depth, pose]
         augmentation:
           # resize: [768, 1280]
@@ -60,7 +53,7 @@ datasets:
 wandb:
     recipe: wandb|default
     project: vidar_panodepth_gcp
-    tags: ['220629', 'loss_on_image', 'loss_on_pano', 'reproj_mono_stereo']
+    tags: ['220630', 'loss_on_image', 'loss_on_pano', 'reproj_mono_stereo']
     num_validation_logs: 10
 checkpoint:
-    recipe: checkpoint|default_local
+    recipe: checkpoint|default

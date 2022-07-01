@@ -1,7 +1,6 @@
 wrapper:
     recipe: wrapper|default
     flip_lr_prob: 0.0
-    # validate_first: True
     validate_flipped: False
 arch:
     model:
@@ -17,6 +16,7 @@ arch:
         reprojection:
             recipe: losses/reprojection|panodepth_mono_stereo
             automask_loss: True
+            flow_downsampling: True
         smoothness:
             recipe: losses/smoothness|default
 evaluation:
@@ -37,7 +37,7 @@ datasets:
           resize: [384, 640]
         repeat: [1]
         dataloader:
-          batch_size: 2
+          batch_size: 1
           num_workers: 16   # If pin_memory is True, requires ~59GB RAM per 8 workers
     validation:
         recipe: datasets/ddad|validation_panodepth
@@ -52,8 +52,8 @@ datasets:
           num_workers: 16
 wandb:
     recipe: wandb|default
-    project: vidar_panodepth_gcp
-    tags: ['220630', 'loss_on_image', 'loss_on_pano', 'reproj_mono_stereo']
+    project: vidar_panodepth_monet
+    tags: ['220631', 'loss_on_image', 'loss_on_pano', 'reproj_mono_stereo', 'flow_reversal_16pts']
     num_validation_logs: 10
 checkpoint:
-    recipe: checkpoint|default
+    recipe: checkpoint|default_local

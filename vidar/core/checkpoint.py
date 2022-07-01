@@ -34,7 +34,7 @@ class ModelCheckpoint:
             self.path = None
 
         # Exclude folders
-        self.excludes = ['sandbox']
+        self.excludes = ['sandbox', 'pretrained', 'notebooks', '.vscode', 'misc']
 
         # If there is no folder, only track metrics
         self.tracking_only = self.path is None

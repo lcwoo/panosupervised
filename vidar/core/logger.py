@@ -74,6 +74,8 @@ class WandbLogger:
               pcolor('{}'.format(self.run_name), **font_name))
         print(pcolor('### ', **font_base) + \
               pcolor('{}'.format(self.run_url), **font_underline))
+        print(pcolor('### ', **font_base) + \
+              pcolor('{}'.format(self.run_dir), **font_underline))
         print(pcolor('#' * 60, **font_base))
 
     def __getstate__(self):
@@ -108,6 +110,11 @@ class WandbLogger:
     def run_name(self):
         """Returns run name"""
         return wandb.run.name if self._experiment else None
+
+    @property
+    def run_dir(self):
+        """Returns run name"""
+        return wandb.run.dir if self._experiment else None
 
     @property
     def run_url(self):

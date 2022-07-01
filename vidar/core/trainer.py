@@ -450,7 +450,7 @@ class Trainer:
                     else:
                         scaler.step(optimizer)
                 else:
-                    print0('NaN DETECTED!', i, batch['idx'])
+                    print('NaN DETECTED!', i, batch['idx'])
                 optimizer.zero_grad()
 
             # Step optimizer

@@ -5,4 +5,5 @@ default:
     keep_top: 5
 default_local:
     folder: /data/disk/logs/checkpoints
+    save_code: True
     keep_top: 5

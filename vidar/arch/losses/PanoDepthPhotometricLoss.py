@@ -164,13 +164,14 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
         def spatial_reduce_func(losses):
             return losses[losses > 0.0].mean() if not losses.eq(0.0).all() else 0.0
 
-        def scale_reduce_func(losses):
-            return sum(losses) / self.n
+        def scale_reduce_func(losses, weights):
+            return sum([loss * weight for loss, weight in zip(losses, weights)]) / self.n
 
         # Reduce photometric loss
+        weights = self.get_weights(self.scales)
         view_reduced_loss = [view_reduce_func(photometric_losses[i]) for i in range(self.n)]
         spatial_reduced_loss = [spatial_reduce_func(view_reduced_loss[i]) for i in range(self.n)]
-        photometric_loss = scale_reduce_func(spatial_reduced_loss)
+        photometric_loss = scale_reduce_func(spatial_reduced_loss, weights)
         return (photometric_loss, None) if not debug else (photometric_loss, view_reduced_loss)
 
     def calc_smoothness_loss_masked(self, inv_depths, images, masks):

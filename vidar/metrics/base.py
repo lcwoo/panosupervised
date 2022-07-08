@@ -46,6 +46,11 @@ class BaseEvaluation:
         return '|{:<}|'.format('*' * self.width)
 
     @property
+    def horz_dashline(self):
+        """Print horizontal dashline"""
+        return '|{:<}|'.format('-' * self.width)
+
+    @property
     def metr_line(self):
         """Print metrics line"""
         return '| {:^30} |' + ' {:^8} |' * len(self.metrics)

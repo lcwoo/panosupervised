@@ -30,6 +30,14 @@ class PanoCamSelfSupGTPoseModel(BaseModel):
         # 1. Compute inverse depth
         net_output = self.networks['depth'](filtered_batch)
 
+        # TODO(soonminh): remove this and plot validation losses
+        if not self.training:
+            return {
+                'predictions': {
+                    'panodepth': {0: inv2depth(net_output['inv_depths'])},
+                },
+            }
+
         # TODO(soonminh): add pose network (require rgb_context)
 
         loss_dict = self.losses['reprojection'](batch, net_output, return_logs, use_gtpose=self.gt_pose)
@@ -37,7 +45,7 @@ class PanoCamSelfSupGTPoseModel(BaseModel):
 
         return {
             'predictions': {
-                'panodepth': {0: inv2depth(net_output['inv_depths'][0])},
+                'panodepth': {0: inv2depth(net_output['inv_depths'])},
             },
             **net_output,
             **loss_dict,

@@ -68,10 +68,14 @@ class DepthEvaluation(BaseEvaluation):
             print(self.horz_line)
             print(self.wrap(pcolor('*** {:<114}'.format(prefixes[n]), **self.font1)))
             print(self.horz_line)
-            for key, metric in sorted(metrics.items()):
+            key_prev = ''
+            for i, (key, metric) in enumerate(sorted(metrics.items())):
                 if self.name in key:
+                    if i > 0 and len(key) != len(key_prev):
+                        print(self.horz_dashline)
                     print(self.wrap(pcolor(self.outp_line.format(
                         *((key.upper(),) + tuple(metric.tolist()))), **self.font2)))
+                    key_prev = key
         print(self.horz_line)
         print()
 
@@ -235,51 +239,6 @@ class PanoDepthEvaluation(DepthEvaluation):
             raise NotImplementedError
 
     def evaluate(self, batch, output, flipped_output=None):
-        """
-        Evaluate predictions
-
-        Parameters
-        ----------
-        batch : Dict
-            Dictionary containing ground-truth information
-        output : Dict
-            Dictionary containing predictions
-        flipped_output : Bool
-            Optional flipped output for post-processing
-
-        Returns
-        -------
-        metrics : Dict
-            Dictionary with calculated metrics
-        predictions : Dict
-            Dictionary with additional predictions
-        """
-        metrics, predictions = {}, {}
-        # For each output item
-        for key, val in output.items():
-            # Loop over every context
-            val = val if is_dict(val) else {0: val}
-            for ctx in val.keys():
-
-                # TODO(soonminh): Loop over every scale
-                pred = val[ctx]
-                gt = batch['camera_pano']['depth']
-
-                # TODO(soonminh): Support post-process (flip multicam batch)
-                if self.post_process:
-                    pred_flipped = flipped_output[key][ctx]
-                    pred_pp = post_process_depth(pred, pred_flipped, method='mean')
-                else:
-                    pred_pp = None
-
-                suffix = '(%s)' % str(ctx)
-                for mode in self.modes:
-                    metrics[f'{key}|{mode}{suffix}'] = \
-                        self.compute(
-                            gt=gt,
-                            pred=pred_pp if 'pp' in mode else pred,
-                            use_gt_scale='gt' in mode,
-                            mask=None,
-                        )
-
-        return dict_remove_nones(metrics), predictions
+        # TODO(soonminh): Support post-process (flip multicam batch)
+        new_batch = {self.name: {0: batch['camera_pano']['depth']}}
+        return super().evaluate(new_batch, output, flipped_output)

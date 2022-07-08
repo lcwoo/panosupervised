@@ -5,18 +5,41 @@ wrapper:
 arch:
     model:
         file: depth/PanoCamSelfSupGTPoseModel
+        checkpoint: pretrained/FSM_MR_6cams_DDAD.ckpt
+        mappings: [
+          ['encoder.encoder', [
+              'encoders.camera_01.encoder',
+              'encoders.camera_05.encoder',
+              'encoders.camera_06.encoder',
+              'encoders.camera_07.encoder',
+              'encoders.camera_08.encoder',
+              'encoders.camera_09.encoder',
+            ],
+          ]
+        ]
     networks:
         depth:
-            recipe: networks/multicam_depth_net|panodepth_ddad
+            # recipe: networks/multicam_depth_net|panodepth_ddad
+            recipe: networks/multicam_depth_net|panodepth_ddad_resnet
             min_depth: 2.0
             max_depth: 200.0
+            # Note: downsampled panodepth can reduce computation and memory,
+            # but it makes the image depth blurry when filling the holes by interpolation.
+            freeze_encoders: True
             decoder:
               downsample: True
     losses:
         reprojection:
+            # recipe: losses/reprojection|panodepth_mono_only
             recipe: losses/reprojection|panodepth_mono_stereo
             automask_loss: True
+            # Note: flow_downsampling can help mitigate holes in image depth issue,
+            # but it makes the image depth blurry, so the smoothness calculated on image space
+            # cannot make panodepth smooth.
+            # Since current issue is "non-smooth panodepth" and "wrong depth" in very close region,
+            # let's turn this off at this moment.
             flow_downsampling: True
+            upsample_depth: True
         smoothness:
             recipe: losses/smoothness|default
 evaluation:
@@ -26,10 +49,11 @@ evaluation:
 optimizers:
     depth:
         recipe: optimizers|adam_20_05
-        lr: 0.00005
+        # lr: 0.00005
 datasets:
     train:
-        recipe: datasets/ddad|train_selfsup_panodepth
+        # recipe: datasets/ddad|train_selfsup_panodepth
+        recipe: datasets/ddad_tiny|train_selfsup_panodepth
         labels: [depth, pose]
         augmentation:
           # resize: [768, 1280]
@@ -40,7 +64,8 @@ datasets:
           batch_size: 1
           num_workers: 16   # If pin_memory is True, requires ~59GB RAM per 8 workers
     validation:
-        recipe: datasets/ddad|validation_panodepth
+        # recipe: datasets/ddad|validation_panodepth
+        recipe: datasets/ddad_tiny|validation_panodepth
         labels: [depth, pose]
         augmentation:
           # resize: [768, 1280]
@@ -53,7 +78,7 @@ datasets:
 wandb:
     recipe: wandb|default
     project: vidar_panodepth_monet
-    tags: ['220631', 'loss_on_image', 'loss_on_pano', 'reproj_mono_stereo', 'flow_reversal_16pts']
-    num_validation_logs: 10
+    tags: ['220708', 'loss_on_image', 'loss_on_pano', 'reproj_mono', 'flow_reversal_16pts', 'freeze_encoders']
+    num_validation_logs: 20
 checkpoint:
     recipe: checkpoint|default_local

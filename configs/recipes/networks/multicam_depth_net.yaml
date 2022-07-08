@@ -44,3 +44,55 @@ panodepth_ddad:
         num_ch_out: 1
         downsample: False
 
+panodepth_ddad_resnet:
+    file: depth/MultiCamDepthNet
+    min_depth: 1.0
+    max_depth: 200.0
+
+    encoders:
+        camera_01:
+            file: encoders/ResNetEncoder
+            version: 18
+            pretrained: True
+            in_shape: [384, 640]
+            num_rgb_in: 1
+        camera_05:
+            file: encoders/ResNetEncoder
+            version: 18
+            pretrained: True
+            in_shape: [384, 640]
+            num_rgb_in: 1
+        camera_06:
+            file: encoders/ResNetEncoder
+            version: 18
+            pretrained: True
+            in_shape: [384, 640]
+            num_rgb_in: 1
+        camera_07:
+            file: encoders/ResNetEncoder
+            version: 18
+            pretrained: True
+            in_shape: [384, 640]
+            num_rgb_in: 1
+        camera_08:
+            file: encoders/ResNetEncoder
+            version: 18
+            pretrained: True
+            in_shape: [384, 640]
+            num_rgb_in: 1
+        camera_09:
+            file: encoders/ResNetEncoder
+            version: 18
+            pretrained: True
+            in_shape: [384, 640]
+            num_rgb_in: 1
+
+    decoder:
+        file: decoders/PanoDepthDecoder
+        fusion_type: MultiDepthSweepFusion
+        out_shape: [256, 2048]
+        use_skips: True
+        activation: sigmoid
+        num_ch_out: 1
+        downsample: False
+

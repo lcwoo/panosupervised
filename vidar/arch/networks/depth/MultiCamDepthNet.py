@@ -28,6 +28,7 @@ class MultiCamDepthNet(BaseNet, ABC):
         super().__init__(cfg)
 
         self.input_cameras = [c for c in cfg.encoders.keys() if c.startswith('camera')]
+        self.freeze_encoders = cfg_has(cfg, 'freeze_encoders', False)
 
         ### Encoders
         scale_and_shapes = dict()
@@ -88,9 +89,15 @@ class MultiCamDepthNet(BaseNet, ABC):
 
         log_images = {}
 
-        # Get per-camera features from encoders
-        per_camera_features = {key: self.networks['encoders'][key](sample['rgb'])
-                                for key, sample in batch.items() if 'rgb' in sample}
+        if self.freeze_encoders:
+            with torch.no_grad():
+                # Get per-camera features from encoders
+                per_camera_features = {key: self.networks['encoders'][key](sample['rgb'])
+                                        for key, sample in batch.items() if 'rgb' in sample}
+        else:
+            # Get per-camera features from encoders
+            per_camera_features = {key: self.networks['encoders'][key](sample['rgb'])
+                                    for key, sample in batch.items() if 'rgb' in sample}
 
         # Predict depth from multi-cam features
         out = self.networks['decoder'](per_camera_features, meta_info)

@@ -1,6 +1,7 @@
 # TRI-VIDAR - Copyright 2022 Toyota Research Institute.  All rights reserved.
 
 import math
+from collections import defaultdict
 
 import torch
 import torch.nn as nn
@@ -112,7 +113,7 @@ def make_val_fit(model, key, val, updated_state_dict, strict=False):
     return fit
 
 
-def load_checkpoint(model, checkpoint, strict=False, verbose=False, prefix=None):
+def load_checkpoint(model, checkpoint, mappings=None, strict=False, verbose=False, prefix=None):
     """
     Load checkpoint into a model
 
@@ -122,6 +123,8 @@ def load_checkpoint(model, checkpoint, strict=False, verbose=False, prefix=None)
         Input network
     checkpoint : String or list[String]
         Checkpoint path (if it's a list, load them in order)
+    mappings : list[Tuple]
+        Define mappings from checkpoint to model
     strict : Bool
         True if all tensors are required, False if can be partially loaded
     verbose : Bool
@@ -151,7 +154,14 @@ def load_checkpoint(model, checkpoint, strict=False, verbose=False, prefix=None)
         checkpoint,
         map_location='cpu' if dist_mode() == 'cpu' else 'cuda:{}'.format(rank())
     )['state_dict']
+
     updated_state_dict = {}
+
+    mappings_dict = defaultdict(list)
+    for key, val in mappings:
+        if not isinstance(val, list):
+            val = [val]
+        mappings_dict[key].extend(val)
 
     total, fit = len(model.state_dict()), 0
     for key, val in state_dict.items():
@@ -165,6 +175,15 @@ def load_checkpoint(model, checkpoint, strict=False, verbose=False, prefix=None)
                 key = key[(idx + len(prefix) + 1):]
         if key in model.state_dict().keys():
             fit += make_val_fit(model, key, val, updated_state_dict, strict=strict)
+
+        for mk, mvlist in mappings_dict.items():
+            if mk in key:
+                for mv in mvlist:
+                    new_key = key.replace(mk, mv)
+                    val_new = model.state_dict()[new_key]
+                    if same_shape(val.shape, val_new.shape):
+                        updated_state_dict[new_key] = val
+                        fit += 1
 
     model.load_state_dict(updated_state_dict, strict=strict)
 

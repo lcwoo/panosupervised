@@ -93,16 +93,23 @@ class Wrapper(torch.nn.Module, ABC):
         if not cfg_has(self.cfg, 'optimizers'):
             return None, None
 
+        freeze_encoders = cfg_has(self.cfg.arch.networks.depth, 'freeze_encoders', False)
+        exclude_params = []
+        if freeze_encoders:
+            exclude_params.append('encoder')
+
         optimizers = OrderedDict()
         schedulers = OrderedDict()
 
         for key, val in self.cfg.optimizers.__dict__.items():
             assert key in self.arch.networks, f'There is no network for optimizer {key}'
+            params = [p for n, p in self.arch.networks[key].named_parameters()
+                            if not any([ep in n for ep in exclude_params])]
             optimizers[key] = {
                 'optimizer': getattr(torch.optim, val.name)(**{
                     'lr': val.lr,
                     'weight_decay': cfg_has(val, 'weight_decay', 0.0),
-                    'params': self.arch.networks[key].parameters(),
+                    'params': params,
                 }),
                 'settings': {} if not cfg_has(val, 'settings') else val.settings.__dict__
             }

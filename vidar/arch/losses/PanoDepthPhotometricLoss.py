@@ -330,7 +330,9 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
 
             has_stereo_loss = len(photometric_losses_stereo[0]) > 0
             loss_stereo, per_pixel_loss_stereo = self.reduce_photometric_loss(photometric_losses_stereo, debug=return_logs) if has_stereo_loss else (0.0, None)
-            loss_on_pano, per_pixel_loss_on_pano = self.reduce_photometric_loss(photometric_losses_on_pano, debug=return_logs)
+
+            has_pano_loss = len(photometric_losses_on_pano[0]) > 0
+            loss_on_pano, per_pixel_loss_on_pano = self.reduce_photometric_loss(photometric_losses_on_pano, debug=return_logs) if has_pano_loss else (0.0, None)
 
             loss_mono *= self.mono_weight
             loss_stereo *= self.stereo_weight

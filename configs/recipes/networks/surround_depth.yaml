@@ -1,0 +1,17 @@
+sd_ddad:
+    file: depth/MultiCamDepthNet
+    share_encoder: True
+    encoder:
+        file: encoders/ResNetEncoder
+        version: 34
+        pretrained: True
+        num_rgb_in: 1
+    decoder:
+        file: decoders/SurroundDepthDecoder
+        fusion_skip: True
+        num_output_channels: 1
+        upsample_mode: nearest
+        num_scales: 4
+        use_skips: True
+    min_depth: 0.1
+    max_depth: 200.0

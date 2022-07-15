@@ -11,7 +11,27 @@ from vidar.utils.config import cfg_has, get_folder_name, load_class
 
 _KNOWN_DECODER_TYPES = (
     'PanoDepthDecoder',             # Proposed
+    'SurroundDepthDecoder',         # SurroundDepth
 )
+
+def allow_multicam_input(func):
+    """Decorator to allow 5-dim input tensors by reshaping, e.g. BxNxCxHxW -> {BxN}xCxHxW"""
+    # HACK(soonminh): this decorator works only for below network.
+    # TODO(soonminh): should be improved and moved to vidar/utils/decorator.py
+    def inner(cls, batch, **kwargs):
+        B = N = None
+        rgb = batch['rgb']
+        if rgb.dim() == 5:
+            B, N = rgb.shape[:2]
+            rgb = rgb.view(B * N, *rgb.shape[2:])
+            batch['rgb'] = rgb
+
+        out = func(cls, batch, **kwargs)
+        if B is not None:
+            # HACK(soonminh): Assuming a specific output type; a dict of list of tensor
+            out = {k: [v.view(B, N, *v.shape[1:]) for v in vs] for k, vs in out.items()}
+        return out
+    return inner
 
 
 class MultiCamDepthNet(BaseNet, ABC):
@@ -27,28 +47,37 @@ class MultiCamDepthNet(BaseNet, ABC):
     def __init__(self, cfg):
         super().__init__(cfg)
 
-        self.input_cameras = [c for c in cfg.encoders.keys() if c.startswith('camera')]
-        self.freeze_encoders = cfg_has(cfg, 'freeze_encoders', False)
-
         ### Encoders
-        scale_and_shapes = dict()
-        out_shape = cfg_has(cfg.decoder, 'out_shape', (128, 1024))
-
-        self.networks['encoders'] = nn.ModuleDict()
-        for camera in self.input_cameras:
-            cfg_per_cam = cfg.encoders.dict[camera]
-            file = cfg_has(cfg_per_cam, 'file', 'MobileNetEncoder')
+        if cfg_has(cfg, 'share_encoder', False):
+            # SurroundDepth implementation
+            file = cfg_has(cfg.encoder, 'file', 'encoders/ResNetEncoder')
             folder, name = get_folder_name(file, 'networks')
-            encoder_module = load_class(name, folder)(cfg_per_cam)
-            self.networks['encoders'][camera] = encoder_module
+            encoder_module = load_class(name, folder)(cfg.encoder)
+            self.networks['encoder'] = encoder_module
+            cfg.decoder.num_ch_enc = encoder_module.num_ch_enc
+        else:
+            # PanoDepth implementation
+            self.input_cameras = [c for c in cfg.encoders.keys() if c.startswith('camera')]
+            self.freeze_encoders = cfg_has(cfg, 'freeze_encoders', False)
 
-            in_shape = cfg_has(cfg_per_cam, 'in_shape', (384, 640))
-            # scale_and_shapes[camera] = self._get_output_shape(encoder_module, in_shape, out_shape)
-            scale_and_shapes[camera] = [(s, (ch, in_shape[0]//s, in_shape[1]//s), (ch, out_shape[0]//s, out_shape[1]//s))
-                for s, ch in zip(encoder_module.reduction, encoder_module.num_ch_enc)]
+            scale_and_shapes = dict()
+            out_shape = cfg_has(cfg.decoder, 'out_shape', (128, 1024))
 
-        cfg.decoder.scale_and_shapes = scale_and_shapes
-        cfg.decoder.input_cameras = self.input_cameras
+            self.networks['encoders'] = nn.ModuleDict()
+            for camera in self.input_cameras:
+                cfg_per_cam = cfg.encoders.dict[camera]
+                file = cfg_has(cfg_per_cam, 'file', 'MobileNetEncoder')
+                folder, name = get_folder_name(file, 'networks')
+                encoder_module = load_class(name, folder)(cfg_per_cam)
+                self.networks['encoders'][camera] = encoder_module
+
+                in_shape = cfg_has(cfg_per_cam, 'in_shape', (384, 640))
+                # scale_and_shapes[camera] = self._get_output_shape(encoder_module, in_shape, out_shape)
+                scale_and_shapes[camera] = [(s, (ch, in_shape[0]//s, in_shape[1]//s), (ch, out_shape[0]//s, out_shape[1]//s))
+                    for s, ch in zip(encoder_module.reduction, encoder_module.num_ch_enc)]
+
+            cfg.decoder.scale_and_shapes = scale_and_shapes
+            cfg.decoder.input_cameras = self.input_cameras
 
         ### Decoder
         folder, name = get_folder_name(cfg.decoder.file, 'networks')
@@ -73,6 +102,7 @@ class MultiCamDepthNet(BaseNet, ABC):
     #         scale_and_shapes.append((scale, ishape, oshape))
     #     return scale_and_shapes
 
+    @allow_multicam_input
     def forward(self, batch, return_logs=False):
         """Network forward pass"""
         # Prepare meta information for MultiDepthSweepFusion
@@ -89,20 +119,26 @@ class MultiCamDepthNet(BaseNet, ABC):
 
         log_images = {}
 
-        if self.freeze_encoders:
-            with torch.no_grad():
+        if 'encoders' in self.networks:
+            # Per-camera encoders, for PanoDepth
+            if self.freeze_encoders:
+                with torch.no_grad():
+                    # Get per-camera features from encoders
+                    per_camera_features = {key: self.networks['encoders'][key](sample['rgb'])
+                                            for key, sample in batch.items() if 'rgb' in sample}
+            else:
                 # Get per-camera features from encoders
                 per_camera_features = {key: self.networks['encoders'][key](sample['rgb'])
                                         for key, sample in batch.items() if 'rgb' in sample}
         else:
-            # Get per-camera features from encoders
-            per_camera_features = {key: self.networks['encoders'][key](sample['rgb'])
-                                    for key, sample in batch.items() if 'rgb' in sample}
+            # Shared encoder
+            per_camera_features = self.networks['encoder'](batch['rgb'])
 
         # Predict depth from multi-cam features
         out = self.networks['decoder'](per_camera_features, meta_info)
 
-        inv_depths = [out[('output', i)] for i in range(self.num_scales)]
+        inv_depths = [out[('output', i)] if ('output', i) in out else out[('disp', i)]
+                        for i in range(self.num_scales)]
         inv_depths = [self.scale_inv_depth(inv_depth) for inv_depth in inv_depths]
 
         return {

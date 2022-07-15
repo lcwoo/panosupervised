@@ -31,7 +31,7 @@ class PanoCamSelfSupGTPoseModel(BaseModel):
         net_output = self.networks['depth'](filtered_batch)
 
         # TODO(soonminh): remove this and plot validation losses
-        if not self.training:
+        if not return_logs and not self.training:
             return {
                 'predictions': {
                     'panodepth': {0: inv2depth(net_output['inv_depths'])},

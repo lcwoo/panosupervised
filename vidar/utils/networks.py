@@ -113,7 +113,7 @@ def make_val_fit(model, key, val, updated_state_dict, strict=False):
     return fit
 
 
-def load_checkpoint(model, checkpoint, mappings=None, strict=False, verbose=False, prefix=None):
+def load_checkpoint(model, checkpoint, mappings=None, strict=False, verbose=False, prefix=None, add_prefix=None):
     """
     Load checkpoint into a model
 
@@ -139,7 +139,7 @@ def load_checkpoint(model, checkpoint, mappings=None, strict=False, verbose=Fals
     """
     if is_list(checkpoint):
         for ckpt in checkpoint:
-            load_checkpoint(model, ckpt, strict, verbose)
+            load_checkpoint(model, ckpt, mappings, strict, verbose, prefix, add_prefix)
         return model
 
     font1 = {'color': 'magenta', 'attrs': ('bold', 'dark')}
@@ -153,15 +153,18 @@ def load_checkpoint(model, checkpoint, mappings=None, strict=False, verbose=Fals
     state_dict = torch.load(
         checkpoint,
         map_location='cpu' if dist_mode() == 'cpu' else 'cuda:{}'.format(rank())
-    )['state_dict']
+    )
+    if 'state_dict' in state_dict:
+        state_dict = state_dict['state_dict']
 
     updated_state_dict = {}
 
     mappings_dict = defaultdict(list)
-    for key, val in mappings:
-        if not isinstance(val, list):
-            val = [val]
-        mappings_dict[key].extend(val)
+    if mappings is not None:
+        for key, val in mappings:
+            if not isinstance(val, list):
+                val = [val]
+            mappings_dict[key].extend(val)
 
     total, fit = len(model.state_dict()), 0
     for key, val in state_dict.items():
@@ -173,6 +176,13 @@ def load_checkpoint(model, checkpoint, mappings=None, strict=False, verbose=Fals
             idx = key.find(prefix)
             if idx > -1:
                 key = key[(idx + len(prefix) + 1):]
+
+        if add_prefix is not None:
+            for k, ap in add_prefix:
+                if key.startswith(k):
+                    key = ap + key
+                    break
+
         if key in model.state_dict().keys():
             fit += make_val_fit(model, key, val, updated_state_dict, strict=strict)
 

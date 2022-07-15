@@ -72,9 +72,11 @@ def setup_arch(cfg, checkpoint=None, verbose=False):
         model = load_checkpoint(model, checkpoint,
                                 strict=True, verbose=verbose)
     elif cfg_has(cfg.model, 'checkpoint'):
-        mappings = cfg_has(cfg.model, 'mappings', None)
-        model = load_checkpoint(model, cfg.model.checkpoint, mappings=mappings,
-                                strict=cfg.model.has('checkpoint_strict', False), verbose=verbose)
+        model = load_checkpoint(model, cfg.model.checkpoint,
+                                mappings=cfg_has(cfg.model, 'mappings', None),
+                                strict=cfg.model.has('checkpoint_strict', False),
+                                add_prefix=cfg_has(cfg.model, 'add_prefix', None),
+                                verbose=verbose)
 
     if cfg.model.has('checkpoint_save'):
         save_checkpoint(cfg.model.checkpoint_save, model)

@@ -32,8 +32,12 @@ class Saver:
         self.store_data = cfg_has(cfg, 'store_data', False)
         self.separate = cfg.has('separate', False)
 
-        self.ckpt = None if ckpt is None else \
-            os.path.splitext(os.path.basename(ckpt))[0]
+        self.ckpt = None
+        if ckpt is not None:
+            if is_list(ckpt):
+                self.ckpt = ckpt[0].split('/')[-2]
+            else:
+                self.ckpt = os.path.splitext(os.path.basename(ckpt))[0]
 
         self.naming = cfg_has(cfg, 'naming', 'filename')
         assert self.naming in ['filename', 'splitname'], \

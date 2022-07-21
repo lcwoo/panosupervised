@@ -103,7 +103,7 @@ def write_depth(filename, depth, intrinsics=None):
         np.savez_compressed(filename, depth=depth, intrinsics=intrinsics)
     # If we are saving as a .png
     elif filename.endswith('.png'):
-        depth = transforms.ToPILImage()((depth * 256).astype(np.int32))
+        depth = transforms.ToPILImage()((depth * 256).astype(np.uint8))
         depth.save(filename)
     # Something is wrong
     else:

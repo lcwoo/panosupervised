@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.3.1-devel-ubuntu18.04
+FROM nvidia/cuda:11.3.1-devel-ubuntu20.04
 
 ENV PROJECT=panodepth-vidar
 ENV LC_ALL=C.UTF-8
@@ -10,17 +10,14 @@ ENV TORCHVISION_VERSION=0.11.1+cu113
 ENV CUDNN_VERSION=8.2.1.32-1+cuda11.3
 ENV NCCL_VERSION=2.9.9-1+cuda11.3
 
-# Update GPG keys for the CUDA repository
-RUN apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/3bf863cc.pub
-
 # Install basic libraries
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
-    build-essential cmake g++-4.8 git curl docker.io vim wget ca-certificates
+    build-essential cmake g++ git curl docker.io vim wget ca-certificates
 
 # Install python and pip
 RUN apt-get install -y python${PYTHON_VERSION} python3-pip
-RUN ln -s /usr/bin/python${PYTHON_VERSION} /usr/bin/python & \
-    ln -s /usr/bin/pip3 /usr/bin/pip
+RUN ln -s /usr/bin/python${PYTHON_VERSION} /usr/bin/python
 
 # Upgrade pip
 RUN pip install --upgrade pip
@@ -139,3 +136,6 @@ RUN echo "export PS1='(docker) \[\e[32m\](\D{%T})\[\e[0m\] \[\e[33m\]\u@\h:\w\[\
 # Expose Port for jupyter (8888)
 EXPOSE 8888
 RUN pip install jupyter
+
+# Downgrade protobuf due to wandb issue
+RUN pip install protobuf==3.20.*

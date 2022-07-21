@@ -1,6 +1,13 @@
 sd_ddad:
     file: depth/MultiCamDepthNet
-    share_encoder: True
+    input_cameras: [
+        camera_01,
+        camera_05,
+        camera_06,
+        camera_07,
+        camera_08,
+        camera_09,
+    ]
     encoder:
         file: encoders/ResNetEncoder
         version: 34

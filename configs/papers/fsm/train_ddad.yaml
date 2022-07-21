@@ -1,5 +1,6 @@
 wrapper:
     recipe: wrapper|default
+    max_epochs: 20
 arch:
     model:
         file: depth/FSMModel
@@ -19,19 +20,32 @@ evaluation:
 optimizers:
     depth:
         recipe: optimizers|adam_20_05
+        lr: 0.0002
+        scheduler:
+            name: StepLR
+            step_size: 15
+            gamma: 0.5
     pose:
         recipe: optimizers|adam_20_05
+        lr: 0.0002
+        scheduler:
+            name: StepLR
+            step_size: 15
+            gamma: 0.5
 datasets:
     train:
         recipe: datasets/ddad|train_selfsup_6cams
         labels: [depth, pose]
+        repeat: [1]
     validation:
         recipe: datasets/ddad|validation_6cams
         labels: [depth, pose]
+        repeat: [1]
 wandb:
     recipe: wandb|default
-    project: vidar_panodepth_baselines
-    tags: ['fsm', '220615']
-
+    project: vidar_baselines
+    tags: ['fsm']
+checkpoint:
+    recipe: checkpoint|default
 # save:
 #     recipe: save|depth_splitname

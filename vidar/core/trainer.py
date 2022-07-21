@@ -8,7 +8,7 @@ import torch
 
 from vidar.core.checkpoint import ModelCheckpoint
 from vidar.core.logger import WandbLogger
-from vidar.core.saver import Saver
+from vidar.core import saver
 from vidar.utils.config import cfg_has, dataset_prefix
 from vidar.utils.data import make_list, keys_in
 from vidar.utils.distributed import on_rank_0, rank, world_size, print0, dist_mode
@@ -163,10 +163,11 @@ class Trainer:
         add_saver = cfg_has(cfg, 'save')
 
         if add_saver:
+            saver_type = cfg_has(cfg.save, 'type', 'Saver')
             print0(pcolor('#' * 60, color='red', attrs=('dark',)))
-            print0(pcolor('### Saving data to: %s' % cfg.save.folder, color='red'))
+            print0(pcolor('### Saving data to: %s (%s)' % (cfg.save.folder, saver_type), color='red'))
             print0(pcolor('#' * 60, color='red', attrs=('dark',)))
-            self.saver = Saver(cfg.save, ckpt)
+            self.saver = getattr(saver, saver_type)(cfg.save, ckpt)
 
     @on_rank_0
     def check_and_save(self, wrapper, output, prefixes):

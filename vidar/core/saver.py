@@ -82,7 +82,6 @@ class Saver:
         if self.ckpt is not None:
             path = os.path.join(path, self.ckpt)
         os.makedirs(path, exist_ok=True)
-
         self.save(batch, predictions, path, idx, 0)
 
     def save(self, batch, predictions, path, idx, i):
@@ -107,7 +106,6 @@ class Saver:
         data : Dict
             Dictionary with output data that was saved
         """
-
         raw_intrinsics = batch['raw_intrinsics'][0][i].cpu() if 'raw_intrinsics' in batch else \
             batch['intrinsics'][0][i].cpu() if 'intrinsics' in batch else None
         intrinsics = batch['intrinsics'][0][i].cpu() if 'intrinsics' in batch else None
@@ -282,5 +280,109 @@ class Saver:
 
         if self.store_data:
             write_pickle('%s' % filename, data)
+
+        return data
+
+class PanoSaver(Saver):
+    def __init__(self, cfg, ckpt=None):
+        super().__init__(cfg, ckpt)
+        assert 'gt' not in self.rgb, 'GT RGB is not defined in PanoSpace.'
+
+    def get_filename(self, path, batch_cam, batch_idx, i):
+        """Get filename based on input information"""
+        if self.naming == 'filename':
+            # TODO(soonminh): do we need i here (batch?)
+            filename = os.path.join(path, batch_cam['filename'][0][i]).replace('{}/', '')
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            return filename
+        elif self.naming == 'splitname':
+            return os.path.join(path, '%010d' % batch_idx)
+        else:
+            raise NotImplementedError('Invalid naming for saver: {}'.format(self.naming))
+
+    def save(self, batch, predictions, path, idx, i):
+        """
+        Save batch and prediction information
+
+        Parameters
+        ----------
+        batch : Dict
+            Dictionary with batch information
+        predictions : Dict
+            Dictionary with output predictions
+        path : String
+            Path where data will be saved
+        idx : Int
+            Batch index in the split
+        i : Int
+            Index within batch
+
+        Returns
+        -------
+        data : Dict
+            Dictionary with output data that was saved
+        """
+        ctx = 0
+        intrinsics = {c: s['intrinsics'][ctx].cpu().numpy()
+                        for c, s in batch.items() if c.startswith('camera')}
+        data = {
+            'intrinsics': intrinsics,
+        }
+        ## Save per-camera GTs (including camera_pano)
+        for cam, batch_cam in batch.items():
+            if not cam.startswith('camera'):
+                continue
+
+            if 'rgb' in batch_cam:
+                for key in self.rgb:
+                    rgb = batch_cam['rgb'][ctx][i].cpu()
+                    filename = self.get_filename(path, batch_cam, idx, i)
+                    write_image(f'{filename}_rgb_{key}.png', rgb)
+                    data[f'rgb_{cam}'] = rgb
+
+            if 'depth' in batch_cam:
+                depth = batch_cam['depth'][ctx][i].cpu()
+                data[f'depth_gt_{cam}'] = depth
+                filename = self.get_filename(path, batch_cam, idx, i)
+
+                for key in self.depth:
+                    if key == 'gt_png':
+                        write_depth(f'{filename}_depth_{key}.png',
+                            depth[0])
+                    elif key == 'gt_npz':
+                        write_depth(f'{filename}_depth_{key}.npz',
+                            depth, intrinsics=intrinsics[cam])
+                    elif key == 'gt_viz':
+                        img_shape = [s.item() for s in batch_cam['hw']] if 'hw' in batch_cam else batch_cam['rgb'][ctx].shape[-2:]
+                        write_depth(f'{filename}_depth_{key}.png',
+                            viz_depth(resize_torch_preserve(depth, img_shape), filter_zeros=True))
+
+            # TODO(soonminh): Save pose/mask if needed
+
+        ## Save Preds: panodepth
+        cam = 'camera_pano'
+        batch_cam = batch[cam]
+        depth_pred = predictions['panodepth'][ctx][i][0].cpu()
+        data[f'depth_pr_camera_pano'] = depth_pred
+        filename = self.get_filename(path, batch_cam, idx, i)
+
+        # TODO(soonminh): Save pano-rgb if needed
+
+        for key in self.depth:
+            if 'gt' in key:
+                continue
+            if key == 'png':
+                write_depth(f'{filename}_depth_{key}.png',
+                    depth_pred[0])
+            elif key == 'npz':
+                write_depth(f'{filename}_depth_{key}.npz',
+                    depth_pred, intrinsics=intrinsics[cam])
+            elif key == 'viz':
+                img_shape = [s.item() for s in batch_cam['hw']] if 'hw' in batch_cam else batch_cam['rgb'][ctx].shape[-2:]
+                write_depth(f'{filename}_depth_{key}.png',
+                    viz_depth(resize_torch_preserve(depth_pred, img_shape), filter_zeros=True))
+
+        if self.store_data:
+            write_pickle('%s' % filename.replace(cam.upper(), ''), data)
 
         return data

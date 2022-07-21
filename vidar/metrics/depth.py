@@ -1,5 +1,5 @@
 # TRI-VIDAR - Copyright 2022 Toyota Research Institute.  All rights reserved.
-
+import numpy as np
 import torch
 
 from vidar.metrics.base import BaseEvaluation
@@ -188,6 +188,7 @@ class DepthEvaluation(BaseEvaluation):
 
                         pred = val[ctx][i]
                         gt = batch[self.name][ctx]
+                        gt_mask = batch.get('eval_mask', None)
 
                         if self.post_process:
                             pred_flipped = flipped_output[key][ctx][i]
@@ -208,7 +209,7 @@ class DepthEvaluation(BaseEvaluation):
                                         gt=gt,
                                         pred=pred_pp if 'pp' in mode else pred,
                                         use_gt_scale='gt' in mode,
-                                        mask=None,
+                                        mask=gt_mask,
                                     )
                         elif pred.dim() == 5:
                             for j in range(pred.shape[1]):
@@ -218,7 +219,7 @@ class DepthEvaluation(BaseEvaluation):
                                         gt=gt[:, j],
                                         pred=pred_pp[:, j] if 'pp' in mode else pred[:, j],
                                         use_gt_scale='gt' in mode,
-                                        mask=None,
+                                        mask=gt_mask,
                                     )
 
         return dict_remove_nones(metrics), predictions
@@ -240,5 +241,30 @@ class PanoDepthEvaluation(DepthEvaluation):
 
     def evaluate(self, batch, output, flipped_output=None):
         # TODO(soonminh): Support post-process (flip multicam batch)
-        new_batch = {self.name: {0: batch['camera_pano']['depth']}}
+        new_batch = dict()
+        new_batch[self.name] = batch['camera_pano']['depth']
         return super().evaluate(new_batch, output, flipped_output)
+
+        # # Create mask by yaw and evaluate multiple times
+        # depth_yaw = batch['camera_pano']['depth_yaw'][0]
+
+        # yaw_ranges = [
+        #     (    'All', np.deg2rad(  0), np.deg2rad(360)),
+        # ]
+        # yaw_ranges += [(f'{ymin}-{ymax}', np.deg2rad(ymin), np.deg2rad(ymax))
+        #                 for ymin, ymax in zip(np.arange(0, 360, 30), np.arange(15, 361, 30))]
+
+        # import pdb; pdb.set_trace()
+
+        # metrics_all = dict()
+        # predictions_all = dict()
+        # for ii, (name, ymin, ymax) in enumerate(yaw_ranges):
+        #     mask_yaw = (depth_yaw >= ymin) & (depth_yaw < ymax)
+        #     new_batch['eval_mask'] = mask_yaw
+        #     new_output = {k + '_' + name: v for k, v in output.items()}
+
+        #     metrics, predictions = super().evaluate(new_batch, new_output, flipped_output)
+        #     metrics_all.update(metrics)
+        #     predictions_all.update(predictions)
+
+        # return metrics_all, predictions_all

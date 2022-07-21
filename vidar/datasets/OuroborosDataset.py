@@ -15,18 +15,21 @@ from vidar.utils.read import read_image
 from vidar.utils.types import is_str
 
 
-def load_from_file(filename, key):
+def load_from_file(filename, *keys):
     """Load data cache from a file"""
-    data = np.load(filename, allow_pickle=True)[key]
-    if len(data.shape) == 0:
-        data = None
-    return data
+    if is_str(keys):
+        keys = [keys]
+    data = np.load(filename, allow_pickle=True)
+    out = [data[k] for k in keys]
+    if len(out[0].shape) == 0:
+        out = None
+    return out[0] if len(keys) == 1 else out
 
 
-def save_to_file(filename, key, value):
+def save_to_file(filename, data_dict):
     """Save data to a cache file"""
     os.makedirs(os.path.dirname(filename), exist_ok=True)
-    np.savez_compressed(filename, **{key: value})
+    np.savez_compressed(filename, **data_dict)
 
 
 def generate_proj_maps(camera, Xw, shape):

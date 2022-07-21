@@ -9,7 +9,7 @@ import torch
 
 from vidar.utils.config import cfg_has, read_config
 from vidar.utils.data import set_random_seed
-from vidar.utils.distributed import rank, world_size
+from vidar.utils.distributed import print0, rank, world_size
 from vidar.utils.flip import flip_batch, flip_output
 from vidar.utils.logging import pcolor, set_debug
 from vidar.utils.networks import load_checkpoint, save_checkpoint, freeze_layers_and_norms
@@ -87,16 +87,23 @@ class Wrapper(torch.nn.Module, ABC):
         """Customized evaluation flag for the model"""
         self.arch.eval()
 
-    def configure_optimizers_and_schedulers(self):
+    def configure_optimizers_and_schedulers(self, verbose=True):
         """Configure depth and pose optimizers and the corresponding scheduler"""
 
         if not cfg_has(self.cfg, 'optimizers'):
             return None, None
 
-        freeze_encoders = cfg_has(self.cfg.arch.networks.depth, 'freeze_encoders', False)
-        exclude_params = []
-        if freeze_encoders:
-            exclude_params.append('encoder')
+        exclude_params = cfg_has(self.cfg.arch.networks.depth, 'freeze_params', [])
+        if verbose:
+            font_base = {'color': 'yellow', 'attrs': ('bold', 'dark')}
+            font_name = {'color': 'yellow', 'attrs': ('bold',)}
+
+            print0(pcolor('#' * 60, **font_base))
+            print0(pcolor('###### Optimizer', **font_base))
+            if len(exclude_params):
+                print0(pcolor('- Excluded params:', **font_name))
+                print0(pcolor('\n'.join(exclude_params), **font_name))
+            print0(pcolor('#' * 60, **font_base))
 
         optimizers = OrderedDict()
         schedulers = OrderedDict()
@@ -114,35 +121,15 @@ class Wrapper(torch.nn.Module, ABC):
                 'settings': {} if not cfg_has(val, 'settings') else val.settings.__dict__
             }
             if cfg_has(val, 'scheduler'):
-                if val.scheduler.name == 'CosineAnnealingWarmUpRestarts':
-                    from cosine_annealing_warmup import CosineAnnealingWarmupRestarts
-                    epoch = float(len(self.datasets['train']) / (
-                            world_size() * self.datasets_cfg['train'].dataloader.batch_size * self.datasets_cfg['train'].repeat[0]))
-                    schedulers[key] = CosineAnnealingWarmupRestarts(**{
-                        'optimizer': optimizers[key]['optimizer'],
-                        'first_cycle_steps': int(val.scheduler.first_cycle_steps * epoch),
-                        'cycle_mult': val.scheduler.cycle_mult,
-                        'min_lr': val.scheduler.min_lr,
-                        'max_lr': val.scheduler.max_lr,
-                        'warmup_steps': int(val.scheduler.warmup_steps * epoch),
-                        'gamma': val.scheduler.gamma,
-                    })
-                    self.update_schedulers = 'step'
-                elif val.scheduler.name == 'LinearWarmUp':
-                    from externals.huggingface.transformers.src.transformers.optimization import get_linear_schedule_with_warmup
-                    schedulers[key] = get_linear_schedule_with_warmup(**{
-                        'optimizer': optimizers[key]['optimizer'],
-                        'num_warmup_steps': val.scheduler.num_warmup_steps,
-                        'num_training_steps': val.scheduler.num_training_steps,
-                    })
-                    self.update_schedulers = 'step'
-                else:
-                    schedulers[key] = getattr(torch.optim.lr_scheduler, val.scheduler.name)(**{
-                        'optimizer': optimizers[key]['optimizer'],
-                        'step_size': val.scheduler.step_size,
-                        'gamma': val.scheduler.gamma,
-                    })
-                    self.update_schedulers = 'epoch'
+                scheduler_dict = val.scheduler.__dict__
+                update_schedulers = scheduler_dict.pop('update_schedulers', 'epoch')
+                scheduler_name = scheduler_dict.pop('name')
+
+                schedulers[key] = getattr(torch.optim.lr_scheduler, scheduler_name)(**{
+                    'optimizer': optimizers[key]['optimizer'],
+                    **scheduler_dict,
+                })
+                self.update_schedulers = update_schedulers
 
         # Return optimizer and scheduler
         return optimizers, schedulers
@@ -229,6 +216,8 @@ class Wrapper(torch.nn.Module, ABC):
         """Finishes a validation epoch"""
         if isinstance(output[0], dict):
             output = [output]
+
+        # TODO(soonminh): Create pandas table from output and save into a file
 
         metrics_dict = {}
         for task in self.metrics:

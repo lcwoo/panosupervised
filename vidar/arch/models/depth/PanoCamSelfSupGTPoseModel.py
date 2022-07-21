@@ -18,19 +18,21 @@ class PanoCamSelfSupGTPoseModel(BaseModel):
         self._input_keys = ('rgb', 'intrinsics', 'pose_to_pano')
 
     def forward(self, batch, return_logs=False, **kwargs):
-        # Only RGB(t=0) will be forwarded to infer depth
-        t = 0
+        # Only RGB(ctx=0) will be forwarded to infer depth
+        ctx = 0
         filtered_batch = {}
         for cam, sample in batch.items():
             if is_dict(sample):
-                filtered_batch[cam] = {k: sample[k][t] if 'pano' not in cam else sample[k]
-                                            for k in self._input_keys if k in sample}
+                filtered_batch[cam] = {k: sample[k][ctx] for k in self._input_keys if k in sample}
 
         ### Compute depth
-        # 1. Compute inverse depth
-        net_output = self.networks['depth'](filtered_batch)
+        log_images = {}
 
-        # TODO(soonminh): remove this and plot validation losses
+        # 1. Compute inverse depth
+        net_output = self.networks['depth'](filtered_batch, return_logs)
+        log_images.update(net_output.pop('log_images'))
+
+        # TODO(soonminh): remove this and plot validation losses if needed
         if not return_logs and not self.training:
             return {
                 'predictions': {
@@ -42,11 +44,13 @@ class PanoCamSelfSupGTPoseModel(BaseModel):
 
         loss_dict = self.losses['reprojection'](batch, net_output, return_logs, use_gtpose=self.gt_pose)
         assert 'loss' in loss_dict and 'metrics' in loss_dict
+        log_images.update(loss_dict.pop('log_images'))
 
         return {
             'predictions': {
                 'panodepth': {0: inv2depth(net_output['inv_depths'])},
             },
+            'log_images': log_images,
             **net_output,
             **loss_dict,
         }

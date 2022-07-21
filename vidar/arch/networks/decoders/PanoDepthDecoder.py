@@ -3,13 +3,14 @@
 from abc import ABC
 from collections import OrderedDict
 
-# import numpy as np
+import numpy as np
 import torch
 import torch.nn as nn
 
 from vidar.arch.networks.layers.convs import ConvBlock, Conv3x3, upsample, downsample
 from vidar.arch.networks.layers.panodepth import multicam_fusion
 from vidar.utils.config import cfg_has
+from vidar.utils.viz import viz_photo
 
 
 def has_same_res(x, y):
@@ -34,11 +35,10 @@ class PanoDepthDecoder(nn.Module, ABC):
         self.use_skips = cfg.use_skips
 
         # Channels after camera fusion
-        self.num_ch_mid = [os[0] for _, _, os in cfg.scale_and_shapes[self.input_cameras[0]]]
+        self.num_ch_mid = [os[0] for _, _, _, os in cfg.scale_and_shapes[self.input_cameras[0]]]
         # Decoder feature channels
         self.num_ch_dec = [16, 32, 64, 128, 256]
         self.num_ch_out = cfg.num_ch_out
-
 
         ### 1. Multi-camera fusion modules
         # depth_hypothesis = cfg_has(cfg, 'depth_hypothesis', [2, 3, 5, 10, 20, 50, 100, 200])
@@ -87,16 +87,25 @@ class PanoDepthDecoder(nn.Module, ABC):
         self.decoder = nn.ModuleList(list(self.convs.values()))
 
 
-    def forward(self, input_features, meta):
+    def forward(self, input_features, meta, return_logs=False):
         """Network forward pass"""
         # TODO(soonminh): return features for analysis/debugging
         input_agg_feats = []
         for i in range(self.num_scales + 1):
             features_scale = {cam: cam_feats[i] for cam, cam_feats in input_features.items()}
-            agg_feats = self.camera_fusions[i](features_scale, meta)
+            agg_feats = self.camera_fusions[i](features_scale, meta, return_logs)
             input_agg_feats.append(agg_feats)
 
-        outputs = {}
+        outputs = {'log_images': {}}
+
+        if return_logs:
+            outputs['log_images'] = {'input_agg_feats': []}
+            for _feat in input_agg_feats:
+                norm = torch.linalg.norm(_feat.detach(), 2, dim=1, keepdim=True)
+                norm /= norm.max()
+                outputs['log_images']['input_agg_feats'].append(
+                    (viz_photo(norm[0]) * 255.0).astype(np.uint8)
+                )
 
         x = input_agg_feats[-1]
         for i in range(self.num_scales, -1, -1):

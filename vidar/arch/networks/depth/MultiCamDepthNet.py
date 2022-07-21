@@ -2,12 +2,16 @@
 
 from abc import ABC
 
+import numpy as np
 import torch
 import torch.nn as nn
 
 from vidar.arch.blocks.depth.SigmoidToInvDepth import SigmoidToInvDepth
+from vidar.arch.blocks.depth.SigmoidToDepth import SigmoidToDepth
+from vidar.arch.blocks.depth.SigmoidToLogDepth import SigmoidToLogDepth
 from vidar.arch.networks.BaseNet import BaseNet
 from vidar.utils.config import cfg_has, get_folder_name, load_class
+from vidar.utils.tensor import make_same_resolution
 
 _KNOWN_DECODER_TYPES = (
     'PanoDepthDecoder',             # Proposed
@@ -18,15 +22,15 @@ def allow_multicam_input(func):
     """Decorator to allow 5-dim input tensors by reshaping, e.g. BxNxCxHxW -> {BxN}xCxHxW"""
     # HACK(soonminh): this decorator works only for below network.
     # TODO(soonminh): should be improved and moved to vidar/utils/decorator.py
-    def inner(cls, batch, **kwargs):
+    def inner(cls, batch, *kargs, **kwargs):
         B = N = None
-        rgb = batch['rgb']
-        if rgb.dim() == 5:
+        rgb = batch.get('rgb', None)
+        if rgb is not None and rgb.dim() == 5:
             B, N = rgb.shape[:2]
             rgb = rgb.view(B * N, *rgb.shape[2:])
             batch['rgb'] = rgb
 
-        out = func(cls, batch, **kwargs)
+        out = func(cls, batch, *kargs, **kwargs)
         if B is not None:
             # HACK(soonminh): Assuming a specific output type; a dict of list of tensor
             out = {k: [v.view(B, N, *v.shape[1:]) for v in vs] for k, vs in out.items()}
@@ -48,20 +52,15 @@ class MultiCamDepthNet(BaseNet, ABC):
         super().__init__(cfg)
 
         ### Encoders
-        if cfg_has(cfg, 'share_encoder', False):
-            # SurroundDepth implementation
-            file = cfg_has(cfg.encoder, 'file', 'encoders/ResNetEncoder')
-            folder, name = get_folder_name(file, 'networks')
-            encoder_module = load_class(name, folder)(cfg.encoder)
-            self.networks['encoder'] = encoder_module
-            cfg.decoder.num_ch_enc = encoder_module.num_ch_enc
-        else:
-            # PanoDepth implementation
+        if cfg_has(cfg, 'encoders', False):
+            # Per-camera encoder
             self.input_cameras = [c for c in cfg.encoders.keys() if c.startswith('camera')]
-            self.freeze_encoders = cfg_has(cfg, 'freeze_encoders', False)
 
             scale_and_shapes = dict()
-            out_shape = cfg_has(cfg.decoder, 'out_shape', (128, 1024))
+            d_shape = cfg_has(cfg.decoder, 'ref_shape', (256, 2048))
+            out_shape = cfg_has(cfg.decoder, 'out_shape', (256, 2048))
+            assert d_shape[0] // out_shape[0] == d_shape[1] // out_shape[1], 'Changing aspect ratio is not tested yet.'
+            out_scale = d_shape[0] // out_shape[0]
 
             self.networks['encoders'] = nn.ModuleDict()
             for camera in self.input_cameras:
@@ -71,36 +70,58 @@ class MultiCamDepthNet(BaseNet, ABC):
                 encoder_module = load_class(name, folder)(cfg_per_cam)
                 self.networks['encoders'][camera] = encoder_module
 
-                in_shape = cfg_has(cfg_per_cam, 'in_shape', (384, 640))
-                # scale_and_shapes[camera] = self._get_output_shape(encoder_module, in_shape, out_shape)
-                scale_and_shapes[camera] = [(s, (ch, in_shape[0]//s, in_shape[1]//s), (ch, out_shape[0]//s, out_shape[1]//s))
-                    for s, ch in zip(encoder_module.reduction, encoder_module.num_ch_enc)]
+                e_shape = cfg_has(cfg_per_cam, 'ref_shape', (384, 640))
+                scale_and_shapes[camera] = [
+                    (in_scale, (ch, e_shape[0]//in_scale, e_shape[1]//in_scale),
+                     in_scale * out_scale, (ch, out_shape[0]//in_scale, out_shape[1]//in_scale))
+                        for in_scale, ch in zip(encoder_module.reduction, encoder_module.num_ch_enc)]
 
             cfg.decoder.scale_and_shapes = scale_and_shapes
-            cfg.decoder.input_cameras = self.input_cameras
+        else:
+            self.input_cameras = cfg.input_cameras
+
+            file = cfg_has(cfg.encoder, 'file', 'encoders/ResNetEncoder')
+            folder, name = get_folder_name(file, 'networks')
+            encoder_module = load_class(name, folder)(cfg.encoder)
+            self.networks['encoder'] = encoder_module
+            cfg.decoder.num_ch_enc = encoder_module.num_ch_enc
+
+            # HACK(soonminh)
+            if 'PanoDepthDecoder' in cfg.decoder.file:
+                e_shape = cfg_has(cfg_per_cam, 'ref_shape', (384, 640))
+
+                d_shape = cfg_has(cfg.decoder, 'ref_shape', (256, 2048))
+                out_shape = cfg_has(cfg.decoder, 'out_shape', (256, 2048))
+                assert d_shape[0] // out_shape[0] == d_shape[1] // out_shape[1], 'Changing aspect ratio is not tested yet.'
+                out_scale = d_shape[0] // out_shape[0]
+
+                scale_and_shapes = dict()
+                for camera in self.input_cameras:
+                    scale_and_shapes[camera] = [
+                    (in_scale, (ch, e_shape[0]//in_scale, e_shape[1]//in_scale),
+                     in_scale * out_scale, (ch, out_shape[0]//in_scale, out_shape[1]//in_scale))
+                        for in_scale, ch in zip(encoder_module.reduction, encoder_module.num_ch_enc)]
+
+                cfg.decoder.scale_and_shapes = scale_and_shapes
 
         ### Decoder
+        cfg.decoder.input_cameras = self.input_cameras
         folder, name = get_folder_name(cfg.decoder.file, 'networks')
         assert name in _KNOWN_DECODER_TYPES, f'Unknown decoder type: {name}'
         self.networks['decoder'] = load_class(name, folder)(cfg.decoder)
         self.num_scales = self.networks['decoder'].num_scales
+        self.depth_focal = cfg_has(cfg.decoder, 'depth_focal', None)
 
-        self.scale_inv_depth = SigmoidToInvDepth(
-            min_depth=cfg.min_depth, max_depth=cfg.max_depth)
-
-    # def _get_output_shape(self, module, img_shape, out_shape):
-    #     # TODO(soonminh): is it a bad habit?
-    #     dummy = torch.zeros((1, 3, *img_shape))
-    #     outputs = module(dummy)
-    #     scale_and_shapes = []
-    #     for out in outputs:
-    #         C, H, W = out.shape[1:]
-    #         assert int(img_shape[0] / H) == int(img_shape[1] / W)
-    #         scale = int(img_shape[0] / H)
-    #         ishape = (C, H, W)
-    #         oshape = (C, int(out_shape[0]/scale), int(out_shape[1]/scale))
-    #         scale_and_shapes.append((scale, ishape, oshape))
-    #     return scale_and_shapes
+        if cfg.scale_invdepth == 'linear':
+            self.scale_inv_depth = SigmoidToDepth(
+                min_depth=cfg.min_depth, max_depth=cfg.max_depth)
+        elif cfg.scale_invdepth == 'inverse':
+            self.scale_inv_depth = SigmoidToInvDepth(
+                min_depth=cfg.min_depth, max_depth=cfg.max_depth)
+        elif cfg.scale_invdepth == 'exp':
+            self.scale_inv_depth = SigmoidToLogDepth()
+        else:
+            raise NotImplementedError
 
     @allow_multicam_input
     def forward(self, batch, return_logs=False):
@@ -120,28 +141,31 @@ class MultiCamDepthNet(BaseNet, ABC):
         log_images = {}
 
         if 'encoders' in self.networks:
-            # Per-camera encoders, for PanoDepth
-            if self.freeze_encoders:
-                with torch.no_grad():
-                    # Get per-camera features from encoders
-                    per_camera_features = {key: self.networks['encoders'][key](sample['rgb'])
-                                            for key, sample in batch.items() if 'rgb' in sample}
-            else:
-                # Get per-camera features from encoders
-                per_camera_features = {key: self.networks['encoders'][key](sample['rgb'])
-                                        for key, sample in batch.items() if 'rgb' in sample}
+            # Per-camera encoders
+            per_camera_features = {key: self.networks['encoders'][key](sample['rgb'])
+                                    for key, sample in batch.items() if 'rgb' in sample}
         else:
             # Shared encoder
-            per_camera_features = self.networks['encoder'](batch['rgb'])
+            if 'rgb' in batch:
+                # SurroundDepth
+                per_camera_features = self.networks['encoder'](batch['rgb'])
+            else:
+                per_camera_features = {key: self.networks['encoder'](sample['rgb'])
+                                        for key, sample in batch.items() if 'rgb' in sample}
 
         # Predict depth from multi-cam features
-        out = self.networks['decoder'](per_camera_features, meta_info)
+        out = self.networks['decoder'](per_camera_features, meta_info, return_logs)
+        log_images.update(out['log_images'])
 
         inv_depths = [out[('output', i)] if ('output', i) in out else out[('disp', i)]
                         for i in range(self.num_scales)]
         inv_depths = [self.scale_inv_depth(inv_depth) for inv_depth in inv_depths]
 
+        # Concatenate log images
+        log_images = {key: np.vstack(make_same_resolution(images, images[0].shape[:2]))
+                            for key, images in log_images.items()}
+
         return {
             'inv_depths': inv_depths,
-            **log_images,
+            'log_images': log_images,
         }

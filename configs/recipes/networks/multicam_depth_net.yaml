@@ -1,3 +1,7 @@
+###
+# ref_shape: Reference resolution. Intrinsics are computed based on this.
+# (Decoder only) out_shape: output resolution from decoder
+
 panodepth_ddad:
     file: depth/MultiCamDepthNet
     min_depth: 1.0
@@ -8,41 +12,43 @@ panodepth_ddad:
             file: encoders/MobileNetEncoder
             version: lcnet_100
             pretrained: True
-            in_shape: [384, 640]
+            ref_shape: [384, 640]
         camera_05:
             file: encoders/MobileNetEncoder
             version: lcnet_100
             pretrained: True
-            in_shape: [384, 640]
+            ref_shape: [384, 640]
         camera_06:
             file: encoders/MobileNetEncoder
             version: lcnet_100
             pretrained: True
-            in_shape: [384, 640]
+            ref_shape: [384, 640]
         camera_07:
             file: encoders/MobileNetEncoder
             version: lcnet_100
             pretrained: True
-            in_shape: [384, 640]
+            ref_shape: [384, 640]
         camera_08:
             file: encoders/MobileNetEncoder
             version: lcnet_100
             pretrained: True
-            in_shape: [384, 640]
+            ref_shape: [384, 640]
         camera_09:
             file: encoders/MobileNetEncoder
             version: lcnet_100
             pretrained: True
-            in_shape: [384, 640]
+            ref_shape: [384, 640]
 
     decoder:
         file: decoders/PanoDepthDecoder
         fusion_type: MultiDepthSweepFusion
+        ref_shape: [256, 2048]
         out_shape: [256, 2048]
         use_skips: True
         activation: sigmoid
         num_ch_out: 1
         downsample: False
+        depth_focal: 1.0
 
 panodepth_ddad_resnet:
     file: depth/MultiCamDepthNet
@@ -54,45 +60,77 @@ panodepth_ddad_resnet:
             file: encoders/ResNetEncoder
             version: 18
             pretrained: True
-            in_shape: [384, 640]
+            ref_shape: [384, 640]
             num_rgb_in: 1
         camera_05:
             file: encoders/ResNetEncoder
             version: 18
             pretrained: True
-            in_shape: [384, 640]
+            ref_shape: [384, 640]
             num_rgb_in: 1
         camera_06:
             file: encoders/ResNetEncoder
             version: 18
             pretrained: True
-            in_shape: [384, 640]
+            ref_shape: [384, 640]
             num_rgb_in: 1
         camera_07:
             file: encoders/ResNetEncoder
             version: 18
             pretrained: True
-            in_shape: [384, 640]
+            ref_shape: [384, 640]
             num_rgb_in: 1
         camera_08:
             file: encoders/ResNetEncoder
             version: 18
             pretrained: True
-            in_shape: [384, 640]
+            ref_shape: [384, 640]
             num_rgb_in: 1
         camera_09:
             file: encoders/ResNetEncoder
             version: 18
             pretrained: True
-            in_shape: [384, 640]
+            ref_shape: [384, 640]
             num_rgb_in: 1
 
     decoder:
         file: decoders/PanoDepthDecoder
         fusion_type: MultiDepthSweepFusion
+        ref_shape: [256, 2048]
         out_shape: [256, 2048]
         use_skips: True
         activation: sigmoid
         num_ch_out: 1
         downsample: False
+        depth_focal: 1.0
+
+panodepth_ddad_resnet_shared:
+    file: depth/MultiCamDepthNet
+    min_depth: 1.0
+    max_depth: 200.0
+    freeze_encoders: False
+    input_cameras: [
+        camera_01,
+        camera_05,
+        camera_06,
+        camera_07,
+        camera_08,
+        camera_09,
+    ]
+    encoder:
+        file: encoders/ResNetEncoder
+        version: 18
+        pretrained: True
+        ref_shape: [384, 640]
+        num_rgb_in: 1
+    decoder:
+        file: decoders/PanoDepthDecoder
+        fusion_type: MultiDepthSweepFusion
+        ref_shape: [256, 2048]
+        out_shape: [256, 2048]
+        use_skips: True
+        activation: sigmoid
+        num_ch_out: 1
+        downsample: False
+        depth_focal: 1.0
 

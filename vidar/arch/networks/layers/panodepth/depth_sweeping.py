@@ -17,21 +17,24 @@ class FeatTransform(nn.Module):
     ----------
     camera: string
         Camera name for indexing
-    scale: float
+    in_scale: float
         Scale of input resolution
     in_shape: Tuple of int
         (channel, height, width) of input feature
+    out_scale: float
+        Scale of output resolution
     out_shape: Tuple of int
         (channel, height, width) of output feature
     given_depth : float
         Uniform depth hypothesis
     """
-    def __init__(self, camera, scale, in_shape, out_shape, given_depth):
+    def __init__(self, camera, in_scale, in_shape, out_scale, out_shape, given_depth):
         super().__init__()
 
         self._in_shape = in_shape
         self._out_shape = out_shape
-        self._scale = scale
+        self._in_scale = in_scale
+        self._out_scale = out_scale
 
         self._camera_name = camera
         self._given_depth = given_depth
@@ -97,12 +100,13 @@ class FeatTransform(nn.Module):
         out_intrinsic = meta[PANO_CAMERA_NAME]['intrinsics'].clone().float()
         relative_pose = Pose(meta[self._camera_name]['pose_to_pano'].clone().float().inverse())
 
-        scaler = 1.0 / self._scale
+        scaler = 1.0 / self._in_scale
         in_intrinsic[..., 0, 0] *= scaler
         in_intrinsic[..., 1, 1] *= scaler
         in_intrinsic[..., 0, 2]  = (in_intrinsic[..., 0, 2] + 0.5) * scaler - 0.5
         in_intrinsic[..., 1, 2]  = (in_intrinsic[..., 1, 2] + 0.5) * scaler - 0.5
 
+        scaler = 1.0 / self._out_scale
         out_intrinsic[..., 0, 0] *= scaler
         out_intrinsic[..., 1, 1] *= scaler
         out_intrinsic[..., 0, 2] *= scaler
@@ -121,44 +125,24 @@ class MultiDepthTransform(nn.Module):
     ----------
     camera: string
         Camera name for indexing
-    scale: float
+    in_scale: float
         Scale of input resolution
     in_shape: Tuple of int
         (channel, height, width) of input feature
+    out_scale: float
+        Scale of output resolution
     out_shape: Tuple of int
         (channel, height, width) of output feature
     given_depths : List of float
         A set of hypothesized depth
-    agg_op: str
-        Aggregation method
     """
-    def __init__(self, camera, scale, in_shape, out_shape, given_depths, agg_op='concat'):
+    def __init__(self, camera, in_scale, in_shape, out_scale, out_shape, given_depths):
         super().__init__()
         self.transforms = nn.ModuleList(
-            [FeatTransform(camera, scale, in_shape, out_shape, d) for d in given_depths]
+            [FeatTransform(camera, in_scale, in_shape, out_scale, out_shape, d) for d in given_depths]
         )
-
-        assert agg_op in ('concat'), 'Unknown aggregation operation: {}'.format(agg_op)
-        self.agg_op = agg_op
-
-        if agg_op == 'concat':
-            self.conv1x1 = ConvBlock(in_shape[0] * len(given_depths), in_shape[0], kernel_size=1)
-            self.conv3x3 = ConvBlock(in_shape[0], out_shape[0], kernel_size=3)
-
-        elif agg_op == 'self_attention':
-            # TODO(soonminh): Implement attention-based fusion (Maybe nn.MultiheadAttention?)
-            raise NotImplementedError
 
     def forward(self, x, meta):
         # Apply transformations for given multiple depth values
         feats_list = [T(x, meta) for T in self.transforms]
-
-        # Aggregate features
-        if self.agg_op == 'concat':
-            feats = torch.concat(feats_list, axis=1)
-            x = self.conv1x1(feats)
-            out = self.conv3x3(x)
-        else:
-            raise NotImplementedError
-
-        return out
+        return feats_list

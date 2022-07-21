@@ -168,7 +168,7 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
             return sum([loss * weight for loss, weight in zip(losses, weights)]) / self.n
 
         # Reduce photometric loss
-        weights = self.get_weights(self.scales)
+        weights = self.get_weights(self.n)
         view_reduced_loss = [view_reduce_func(photometric_losses[i]) for i in range(self.n)]
         spatial_reduced_loss = [spatial_reduce_func(view_reduced_loss[i]) for i in range(self.n)]
         photometric_loss = scale_reduce_func(spatial_reduced_loss, weights)
@@ -208,14 +208,15 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
         if self.interpolate is not None:
             pano_depths = self.interpolate(pano_depths, pano_depths[0].shape[-2:])
 
+        ctx_log = 0
         if return_logs:
             self.log_images.clear()
-            inv_depth_0_gt = depth2inv(batch['camera_pano']['depth'][0].detach().cpu().numpy())
+            inv_depth_0_gt = depth2inv(batch['camera_pano']['depth'][ctx_log][0].detach().cpu().numpy())
             normalizer = np.percentile(inv_depth_0_gt[inv_depth_0_gt > 0], 95)
             self.log_images['panodepth_large'].append(
                 (viz_depth(pano_depths[0][0, 0].detach().cpu(), normalizer=normalizer) * 255.0).astype(np.uint8))
             self.log_images['panodepth_large'].append(
-                (viz_depth(batch['camera_pano']['depth'][0, 0].detach().cpu(), normalizer=normalizer) * 255.0).astype(np.uint8))
+                (viz_depth(batch['camera_pano']['depth'][ctx_log][0, 0].detach().cpu(), normalizer=normalizer) * 255.0).astype(np.uint8))
             for idx, pano_depth in enumerate(pano_depths):
                 self.log_images['panodepth_scale_{}'.format(idx)].append(
                     (viz_depth(pano_depth[0, 0].detach().cpu(), normalizer=normalizer) * 255.0).astype(np.uint8))
@@ -224,14 +225,14 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
                 self.log_images['panodepth'].append(
                     (viz_depth(pano_depths[0][0, 0].detach().cpu(), normalizer=normalizer) * 255.0).astype(np.uint8))
                 self.log_images['panodepth'].append(
-                    (viz_depth(batch['camera_pano']['depth'][0, 0].detach().cpu(), normalizer=normalizer) * 255.0).astype(np.uint8))
+                    (viz_depth(batch['camera_pano']['depth'][ctx_log][0, 0].detach().cpu(), normalizer=normalizer) * 255.0).astype(np.uint8))
 
         ### Prepare target/source contexts
-        K_pano = batch[PANO_CAMERA_NAME]['intrinsics'].float()
+        K_pano = batch[PANO_CAMERA_NAME]['intrinsics'][ctx_log].float()
         Twc_pano = batch[PANO_CAMERA_NAME]['Twc'].float()
         # TODO(soonminh): Fix this
         # hw_pano = [n.tolist() for n in batch[PANO_CAMERA_NAME]['hw']]
-        hw_pano = batch[PANO_CAMERA_NAME]['depth'].shape[-2:]
+        hw_pano = batch[PANO_CAMERA_NAME]['depth'][ctx_log].shape[-2:]
         camera_pano = PanoCamera(K_pano, hw_pano, Twc=Twc_pano, name='camera_pano')
 
         losses = {}

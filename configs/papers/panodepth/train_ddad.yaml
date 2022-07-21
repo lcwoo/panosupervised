@@ -1,33 +1,159 @@
+### 22.07.20. blooming-pine-41
+# panodepth_ddad_resnet (resnet18)
+# min/max depth: [2.0, 200.0]
+# networks.depth.decoder.downsample: False
+# losses.reprojection.flow_downsampling: False
+# losses.reprojection.upsample_depth: False
+# batch_size: 1 (single GPU)
+# -> Best performance in overfitting (Epoch 22, 0.232 / 6.827 / 14.214 / 0.370 / 36.653 / 0.783 / 0.895 / 0.933)
+
+        ### 22.07.20. fiery-morning-43
+        # panodepth_ddad_resnet (resnet18)
+        # min/max depth: [2.0, 200.0]
+        # networks.depth.decoder.downsample: False
+        # networks.depth.decoder.out_shape: [128, 1024]   [!]
+        # losses.reprojection.flow_downsampling: False
+        # losses.reprojection.upsample_depth: True        [!]
+        # batch_size: 2 (4 GPUs, repeat: 8)               [!] (GPU Mem: 11GB)
+        # -> Looks good in overfitting (Epoch 6, 0.328 / 9.021 / 17.306 / 0.458 / 45.210 / 0.642 / 0.810 / 0.881)
+
+        ### 22.07.20. vague-oath-46
+        # panodepth_ddad_resnet (resnet18)
+        # min/max depth: [1.0, 200.0]                     [!]
+        # networks.depth.scale_invdepth: inverse
+        # networks.depth.decoder.downsample: False
+        # networks.depth.decoder.out_shape: [128, 1024]
+        # losses.reprojection.flow_downsampling: False
+        # losses.reprojection.upsample_depth: True
+        # batch_size: 4 (4 GPUs, repeat: 16)               [!] (GPU Mem: 18GB)
+        # -> Not very good in overfitting (Epoch 25, 0.298 / 9.135 / 16.453 / 0.438 / 43.320 / 0.694 / 0.841 / 0.900)
+
+        # => decoder.out_shape: [128, 1024] might seem to be problematic. (intrinsics-related?)
+        # => Need to visualize features to see if the depth_sweeping works as intended or not.
+
+### 22.07.20. dainty-moon-59
+# panodepth_ddad_resnet (resnet18)
+# min/max depth: [1.0, 200.0]                         [!]
+# networks.depth.scale_invdepth: inverse
+# networks.depth.decoder.downsample: False
+# losses.reprojection.flow_downsampling: False
+# losses.reprojection.upsample_depth: True            [!]
+# batch_size: 1 (single GPU, repeat: 1)
+# -> Good performance in overfitting (Epoch 35, 0.244 / 7.538 / 13.995 / 0.373 / 37.212 / 0.790 / 0.895 / 0.935)
+
+### 22.07.20. easy-sea-60 (Reproduce blooiming-pine-41)
+# panodepth_ddad_resnet (resnet18)
+# min/max depth: [2.0, 200.0]
+# networks.depth.scale_invdepth: inverse
+# networks.depth.decoder.downsample: False
+# losses.reprojection.flow_downsampling: False
+# losses.reprojection.upsample_depth: False
+# batch_size: 1 (single GPU, repeat: 1)
+# -> Successfully reproduced (Epoch 22, 0.234 / 6.496 / 14.190 / 0.372 / 36.762 / 0.774 / 0.892 / 0.933)
+
+### 22.07.21. sunny-jazz-61
+# panodepth_ddad_resnet (resnet18)
+# min/max depth: [2.0, 200.0]
+# networks.depth.scale_invdepth: inverse
+# networks.depth.decoder.downsample: False
+# networks.depth.decoder.out_shape: [128, 1024]       [!]   <- Need to fix!!
+# losses.reprojection.flow_downsampling: False
+# losses.reprojection.upsample_depth: False
+# batch_size: 1 (single GPU, repeat: 1)
+# ->
+
+### 22.07.21. decent-breeze-62 (start working well! but why training is so slow? 2.5s/im)
+# panodepth_ddad_resnet (resnet18)
+# min/max depth: [1.0, 200.0]                         [!]
+# networks.depth.scale_invdepth: inverse
+# networks.depth.decoder.downsample: False
+# networks.depth.decoder.out_shape: [128, 1024]       [!]
+# losses.reprojection.flow_downsampling: False
+# losses.reprojection.upsample_depth: False
+# batch_size: 1 (single GPU, repeat: 1)
+# -> Not bad (Epoch 17, 0.277 / 7.152 / 16.921 / 0.428 / 40.802 / 0.659 / 0.837 / 0.902)
+
+### 22.07.21. super-vortex-63
+#   [!!] Fix MultiDepthSweepFunction:
+#     previous: given depths -> conv -> camera
+#     updated: given depths + camera -> avg -> conv (to get consistent features)
+# panodepth_ddad_resnet (resnet18)
+# min/max depth: [1.0, 200.0]
+# networks.depth.scale_invdepth: inverse
+# networks.depth.decoder.downsample: False
+# networks.depth.decoder.out_shape: [128, 1024]
+# losses.reprojection.flow_downsampling: False
+# losses.reprojection.upsample_depth: True            [!]
+# batch_size: 1 (single GPU, repeat: 1)
+# -> Does't work at all. Maybe due to "upsample_depth: True"?
+
+
+### 22.07.21. resilient-firebrand-65
+#   [!!] Fix MultiDepthSweepFunction:
+#     previous: given depths -> conv -> camera
+#     updated: given depths + camera -> avg -> conv (to get consistent features)
+#   + BasicBlock (ResNet block)                       [!]       (Next exp: what if we use Bottleneck instead of BasicBlock?)
+# panodepth_ddad_resnet (resnet18)
+# min/max depth: [1.0, 200.0]
+#                                                               (Next exp: shared encoder)
+#                                                               (Next exp: attention)
+#                                                               (Next exp: positional encoding)
+# networks.depth.scale_invdepth: inverse
+# networks.depth.decoder.downsample: False
+# networks.depth.decoder.out_shape: [128, 1024]
+# losses.reprojection.flow_downsampling: False
+# losses.reprojection.upsample_depth: False           [!]
+# batch_size: 1 (single GPU, repeat: 1)               (GPU Mem: 6.8GB)
+# -> Looks very good!!!! (Epoch 11, 0.265 / 6.799 / 16.219 / 0.398 / 39.399 / 0.702 / 0.854 / 0.917)
+
+
+### 22.07.21. drawn-feather-69 (Slightly deeper pano-encoder)
+#   + BasicBlock x 2 (ResNet block)                   [!]
+# panodepth_ddad_resnet (resnet18)
+# min/max depth: [1.0, 200.0]
+#                                                               (Next exp: shared encoder)
+#                                                               (Next exp: attention)
+#                                                               (Next exp: positional encoding)
+# networks.depth.scale_invdepth: inverse
+# networks.depth.decoder.downsample: False
+# networks.depth.decoder.out_shape: [128, 1024]
+# losses.reprojection.flow_downsampling: False
+# losses.reprojection.upsample_depth: False
+# batch_size: 1 (single GPU, repeat: 1)               (GPU Mem: GB)
+# -> Worse than resilient-firebrand-65, try to reproduce resilient-firebrand-65
+
 wrapper:
     recipe: wrapper|default
     flip_lr_prob: 0.0
     validate_flipped: False
+    validate_first: False
+    max_epochs: 30
 arch:
     model:
         file: depth/PanoCamSelfSupGTPoseModel
-        checkpoint: pretrained/FSM_MR_6cams_DDAD.ckpt
-        mappings: [
-          ['encoder.encoder', [
-              'encoders.camera_01.encoder',
-              'encoders.camera_05.encoder',
-              'encoders.camera_06.encoder',
-              'encoders.camera_07.encoder',
-              'encoders.camera_08.encoder',
-              'encoders.camera_09.encoder',
-            ],
-          ]
-        ]
     networks:
         depth:
             # recipe: networks/multicam_depth_net|panodepth_ddad
             recipe: networks/multicam_depth_net|panodepth_ddad_resnet
-            min_depth: 2.0
+            # recipe: networks/multicam_depth_net|panodepth_ddad_resnet_shared
+            # min_depth: 1.0
+            # max_depth: 110.0
+            # min_depth: 2.0
+            # max_depth: 200.0
+            min_depth: 1.0
             max_depth: 200.0
+            # min_depth: 0.003      # 1.0 / fx = 1.0 / {2048 / (2 * pi)}
+            # max_depth: 0.6        # 200.0 / fx = 1.0 / {2048 / (2 * pi)}
+            scale_invdepth: inverse
             # Note: downsampled panodepth can reduce computation and memory,
             # but it makes the image depth blurry when filling the holes by interpolation.
-            freeze_encoders: True
             decoder:
-              downsample: True
+              out_shape: [128, 1024]
+              # # Control output scale further, since intrinsics are calculated from panocam definition (256 x 2048)
+              # out_scale_from_gt: 2
+              # [IMPORTANT] DO NOT TURN THIS ON. We'll lose the sharpness of the depth map we get.
+              downsample: False
+              # depth_focal: 1.0
     losses:
         reprojection:
             # recipe: losses/reprojection|panodepth_mono_only
@@ -38,8 +164,16 @@ arch:
             # cannot make panodepth smooth.
             # Since current issue is "non-smooth panodepth" and "wrong depth" in very close region,
             # let's turn this off at this moment.
-            flow_downsampling: True
-            upsample_depth: True
+            flow_downsampling: False
+            upsample_depth: False
+            # # mono_weight: 0.7
+            # mono_weight: 0.5
+            # # stereo_weight: 0.15
+            # stereo_weight: 0.0
+            # # pano_weight: 0.15
+            # pano_weight: 0.5
+            # gamma: 0.5
+            gamma: 1.0      # turn-off scale weighting
         smoothness:
             recipe: losses/smoothness|default
 evaluation:
@@ -53,32 +187,26 @@ optimizers:
 datasets:
     train:
         # recipe: datasets/ddad|train_selfsup_panodepth
+        # path: [/data/datasets/DDAD/ddad_train_val/ddad_filtered.json]
         recipe: datasets/ddad_tiny|train_selfsup_panodepth
         labels: [depth, pose]
-        augmentation:
-          # resize: [768, 1280]
-          # resize: [576, 960]
-          resize: [384, 640]
         repeat: [1]
         dataloader:
+          # batch_size: 2
           batch_size: 1
-          num_workers: 16   # If pin_memory is True, requires ~59GB RAM per 8 workers
+          # num_workers: 24   # If pin_memory is True, requires ~59GB RAM per 8 workers
+          num_workers: 32   # If pin_memory is True, requires ~59GB RAM per 8 workers
     validation:
         # recipe: datasets/ddad|validation_panodepth
         recipe: datasets/ddad_tiny|validation_panodepth
         labels: [depth, pose]
-        augmentation:
-          # resize: [768, 1280]
-          # resize: [576, 960]
-          resize: [384, 640]
         dataloader:
-          # pin_memory: False
           batch_size: 1
           num_workers: 16
 wandb:
     recipe: wandb|default
-    project: vidar_panodepth_monet
-    tags: ['220708', 'loss_on_image', 'loss_on_pano', 'reproj_mono', 'flow_reversal_16pts', 'freeze_encoders']
-    num_validation_logs: 20
+    project: vidar_panodepth_lambda_overfitting
+    tags: ['resnet18_encoders', 'train_on_filtered_DDAD']
+    num_validation_logs: 10
 checkpoint:
-    recipe: checkpoint|default_local
+    recipe: checkpoint|default

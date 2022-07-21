@@ -202,6 +202,11 @@ def load_checkpoint(model, checkpoint, mappings=None, strict=False, verbose=Fals
         print0(pcolor('###### Loaded ', **font1) + \
                pcolor('{}/{}'.format(fit,total), color=color, attrs=('bold',)) + \
                pcolor(' tensors', **font1))
+        if fit == 0:
+            print0(pcolor('Checkpoints keys: ', **font2))
+            print0('\n'.join([k for k in state_dict.keys()][:10]))
+            print0(pcolor('Model keys: ', **font1))
+            print0('\n'.join([k for k in model.state_dict().keys()][:10]))
         print0(pcolor('#' * 60, **font1))
 
     return model

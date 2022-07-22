@@ -239,7 +239,22 @@
 # losses.reprojection.upsample_depth: False
 # losses.reprojection.gamma: 0.8                                  [!]
 # batch_size: 1 (single GPU, repeat: 1)               (GPU Mem: 7.2GB)
-# -> Two scales!
+# -> Two scales! (Epoch 4, 0.341 / 8.454 / 17.329 / 0.467 / 45.540 / 0.566 / 0.781 / 0.875)
+
+
+### 22.07.22.
+# networks.depth.recipe: networks/multicam_depth_net|panodepth_ddad_resnet
+# networks.depth.scale_invdepth: inverse
+# networks.depth.min_depth: 2.0                                   [!]
+# networks.depth.decoder.downsample: False
+# networks.depth.decoder.out_shape: [128, 1024]
+# networks.depth.decoder.depth_hypothesis: [3, 10, 30, 90]
+# networks.depth.decoder.view_attention: False
+# networks.depth.decoder.positional_encoding: 32                  [!]
+# losses.reprojection.flow_downsampling: False
+# losses.reprojection.upsample_depth: False
+# batch_size: 1 (single GPU, repeat: 1)               (GPU Mem: GB)
+# ->
 
 wrapper:
     recipe: wrapper|default
@@ -262,13 +277,13 @@ arch:
             # but it makes the image depth blurry when filling the holes by interpolation.
             decoder:
               out_shape: [128, 1024]
-              depth_hypothesis: [2, 3, 10, 30, 90]
+              depth_hypothesis: [3, 10, 30, 90]
               view_attention: False
               # # Control output scale further, since intrinsics are calculated from panocam definition (256 x 2048)
               # [IMPORTANT] DO NOT TURN THIS ON. We'll lose the sharpness of the depth map we get.
               downsample: False
               # depth_focal: 1.0
-              positional_encoding: 0
+              positional_encoding: 32
     losses:
         reprojection:
             # recipe: losses/reprojection|panodepth_mono_only
@@ -281,8 +296,7 @@ arch:
             # let's turn this off at this moment.
             flow_downsampling: False
             upsample_depth: False
-            # gamma: 1.0      # turn-off scale weighting
-            gamma: 0.8
+            gamma: 1.0      # turn-off scale weighting
         smoothness:
             recipe: losses/smoothness|default
 evaluation:
@@ -292,7 +306,6 @@ evaluation:
 optimizers:
     depth:
         recipe: optimizers|adam_20_05
-        # lr: 0.00005
 datasets:
     train:
         # recipe: datasets/ddad|train_selfsup_panodepth

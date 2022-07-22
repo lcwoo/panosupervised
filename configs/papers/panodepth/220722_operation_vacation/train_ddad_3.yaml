@@ -1,0 +1,87 @@
+### Operation vacation
+# Default settings:
+#   - view-attention
+#   - decoder.out_shape: [128, 1024]
+#   - decoder.downsample: False
+#   - depth.min_depth: 2.0
+#   - reprojection.flow_downsampling: False
+#   - reprojection.upsample_depth: False
+#   - batch_size: 4 x 4 GPUs (DDP)
+#   - reprojection.mono_weight: 0.85
+#   - reprojection.stereo_weight: 0.15
+#   - reprojection.pano_weight: 1.0
+#   - reprojection.gamma: 1.0     (Turn-off scale weighting)
+#
+# This experiment,
+#   - depth.recipe: networks/multicam_depth_net|panodepth_ddad
+
+wrapper:
+    recipe: wrapper|default
+    flip_lr_prob: 0.0
+    validate_flipped: False
+    validate_first: False
+    max_epochs: 35
+arch:
+    model:
+        file: depth/PanoCamSelfSupGTPoseModel
+    networks:
+        depth:
+            recipe: networks/multicam_depth_net|panodepth_ddad
+            min_depth: 2.0
+            max_depth: 200.0
+            scale_invdepth: inverse
+            # Note: downsampled panodepth can reduce computation and memory,
+            # but it makes the image depth blurry when filling the holes by interpolation.
+            decoder:
+              out_shape: [128, 1024]
+              view_attention: False
+              # # Control output scale further, since intrinsics are calculated from panocam definition (256 x 2048)
+              # [IMPORTANT] DO NOT TURN THIS ON. We'll lose the sharpness of the depth map we get.
+              downsample: False
+              positional_encoding: 0
+    losses:
+        reprojection:
+            recipe: losses/reprojection|panodepth_mono_stereo
+            automask_loss: True
+            # Note: flow_downsampling can help mitigate holes in image depth issue,
+            # but it makes the image depth blurry, so the smoothness calculated on image space
+            # cannot make panodepth smooth.
+            # Since current issue is "non-smooth panodepth" and "wrong depth" in very close region,
+            # let's turn this off at this moment.
+            flow_downsampling: False
+            upsample_depth: False
+            gamma: 1.0      # turn-off scale weighting
+        smoothness:
+            recipe: losses/smoothness|default
+evaluation:
+    panodepth:
+        recipe: evaluation/depth|ddad_resize
+        post_process: False
+optimizers:
+    depth:
+        recipe: optimizers|adam_20_05
+datasets:
+    train:
+        recipe: datasets/ddad|train_selfsup_panodepth
+        path: [/data/datasets/DDAD/ddad_train_val/ddad_filtered.json]
+        # recipe: datasets/ddad_tiny|train_selfsup_panodepth
+        labels: [depth, pose]
+        repeat: [1]
+        dataloader:
+          batch_size: 4
+          # num_workers: 24   # If pin_memory is True, requires ~59GB RAM per 8 workers
+          num_workers: 32   # If pin_memory is True, requires ~59GB RAM per 8 workers
+    validation:
+        recipe: datasets/ddad|validation_panodepth
+        # recipe: datasets/ddad_tiny|validation_panodepth
+        labels: [depth, pose]
+        dataloader:
+          batch_size: 1
+          num_workers: 16
+wandb:
+    recipe: wandb|default
+    project: vidar_panodepth_lambda_overfitting
+    tags: ['train_on_filtered_DDAD', 'mobilenet_encoders']
+    num_validation_logs: 10
+checkpoint:
+    recipe: checkpoint|default

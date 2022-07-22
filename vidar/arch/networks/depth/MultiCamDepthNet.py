@@ -88,8 +88,7 @@ class MultiCamDepthNet(BaseNet, ABC):
 
             # HACK(soonminh)
             if 'PanoDepthDecoder' in cfg.decoder.file:
-                e_shape = cfg_has(cfg_per_cam, 'ref_shape', (384, 640))
-
+                e_shape = cfg_has(cfg.encoder, 'ref_shape', (384, 640))
                 d_shape = cfg_has(cfg.decoder, 'ref_shape', (256, 2048))
                 out_shape = cfg_has(cfg.decoder, 'out_shape', (256, 2048))
                 assert d_shape[0] // out_shape[0] == d_shape[1] // out_shape[1], 'Changing aspect ratio is not tested yet.'

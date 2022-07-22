@@ -73,14 +73,17 @@ class PanoDepthDecoder(nn.Module, ABC):
         for i in range(self.num_scales, -1, -1):
             # upconv_0
             num_ch_in = self.num_ch_mid[-1] if i == self.num_scales else self.num_ch_dec[i + 1]
-            num_ch_in += positional_encoding
+            num_ch_in += positional_encoding if i == self.num_scales else 0
             num_ch_out = self.num_ch_dec[i]
             self.convs[('upconv', i, 0)] = ConvBlock(num_ch_in, num_ch_out)
 
             # upconv_1
             num_ch_in = self.num_ch_dec[i]
+            if i > 0:
+                num_ch_in += positional_encoding
             if self.use_skips and i > 0:
                 num_ch_in += self.num_ch_mid[i - 1]
+
             num_ch_out = self.num_ch_dec[i]
             self.convs[('upconv', i, 1)] = ConvBlock(num_ch_in, num_ch_out)
 

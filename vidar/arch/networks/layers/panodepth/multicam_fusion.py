@@ -16,14 +16,14 @@ class PositionalEncoding2D(nn.Module):
         self.channels = channels
         inv_freq = 1.0 / (10000 ** (torch.arange(0, channels, 2).float() / channels))
         self.register_buffer("inv_freq", inv_freq)
-        self.cached_penc = None
+        self.cache = None
 
     def get_emb(self, sin_inp):
         """
         Gets a base embedding for one dimension with sin and cos intertwined
         """
-        emb = torch.stack((sin_inp.sin(), sin_inp.cos()), dim=-1)
-        return torch.flatten(emb, -2, -1)
+        emb = torch.stack((sin_inp.sin(), sin_inp.cos()), dim=0)
+        return torch.flatten(emb, 0, 1)
 
     def forward(self, tensor):
         """
@@ -33,25 +33,22 @@ class PositionalEncoding2D(nn.Module):
         if len(tensor.shape) != 4:
             raise RuntimeError("The input tensor has to be 4d!")
 
-        if self.cached_penc is not None and self.cached_penc.shape == tensor.shape:
-            return self.cached_penc
+        if self.cache is not None and self.cache.shape == tensor.shape:
+            return self.cache
 
-        self.cached_penc = None
-        batch_size, x, y, orig_ch = tensor.shape
-        pos_x = torch.arange(x, device=tensor.device).type(self.inv_freq.type())
+        self.cache = None
+        # batch_size, x, y, orig_ch = tensor.shape
+        batch_size, orig_ch, y, x = tensor.shape
         pos_y = torch.arange(y, device=tensor.device).type(self.inv_freq.type())
-        sin_inp_x = torch.einsum("i,j->ij", pos_x, self.inv_freq)
-        sin_inp_y = torch.einsum("i,j->ij", pos_y, self.inv_freq)
-        emb_x = self.get_emb(sin_inp_x).unsqueeze(1)
-        emb_y = self.get_emb(sin_inp_y)
-        emb = torch.zeros((x, y, self.channels * 2), device=tensor.device).type(
-            tensor.type()
-        )
-        emb[:, :, : self.channels] = emb_x
-        emb[:, :, self.channels : 2 * self.channels] = emb_y
+        pos_x = torch.arange(x, device=tensor.device).type(self.inv_freq.type())
+        sin_inp_y = torch.einsum("i,j->ij", self.inv_freq, pos_y)
+        sin_inp_x = torch.einsum("i,j->ij", self.inv_freq, pos_x)
+        emb_y = self.get_emb(sin_inp_y).unsqueeze(2).repeat(1, 1, x)
+        emb_x = self.get_emb(sin_inp_x).unsqueeze(1).repeat(1, y, 1)
 
-        self.cached_penc = emb[None, :, :, :orig_ch].repeat(tensor.shape[0], 1, 1, 1)
-        return self.cached_penc
+        emb = torch.cat([emb_y, emb_x], axis=0)[None]
+        self.cache = emb.repeat(tensor.shape[0], 1, 1, 1)
+        return self.cache
 
 
 class MultiDepthSweepFusion(nn.Module):

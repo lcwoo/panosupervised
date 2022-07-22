@@ -49,6 +49,7 @@ panodepth_ddad:
         num_ch_out: 1
         downsample: False
         depth_focal: 1.0
+        positional_encoding: 0
 
 panodepth_ddad_resnet:
     file: depth/MultiCamDepthNet
@@ -103,6 +104,7 @@ panodepth_ddad_resnet:
         num_ch_out: 1
         downsample: False
         depth_focal: 1.0
+        positional_encoding: 0
 
 panodepth_ddad_resnet_shared:
     file: depth/MultiCamDepthNet
@@ -119,7 +121,8 @@ panodepth_ddad_resnet_shared:
     ]
     encoder:
         file: encoders/ResNetEncoder
-        version: 18
+        # version: 18
+        version: 34
         pretrained: True
         ref_shape: [384, 640]
         num_rgb_in: 1
@@ -133,4 +136,5 @@ panodepth_ddad_resnet_shared:
         num_ch_out: 1
         downsample: False
         depth_focal: 1.0
+        positional_encoding: 0
 

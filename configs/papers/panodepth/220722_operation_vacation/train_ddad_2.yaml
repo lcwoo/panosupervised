@@ -13,7 +13,7 @@
 #   - reprojection.gamma: 1.0     (Turn-off scale weighting)
 #
 # This experiment,
-#   - decoder.positional_encoder: 32
+#   - decoder.positional_encoder: 16
 
 wrapper:
     recipe: wrapper|default
@@ -38,7 +38,7 @@ arch:
               # # Control output scale further, since intrinsics are calculated from panocam definition (256 x 2048)
               # [IMPORTANT] DO NOT TURN THIS ON. We'll lose the sharpness of the depth map we get.
               downsample: False
-              positional_encoding: 32
+              positional_encoding: 16
     losses:
         reprojection:
             recipe: losses/reprojection|panodepth_mono_stereo
@@ -81,7 +81,7 @@ datasets:
 wandb:
     recipe: wandb|default
     project: vidar_panodepth_lambda_overfitting
-    tags: ['train_on_filtered_DDAD', 'positional_encoding_32']
+    tags: ['train_on_filtered_DDAD', 'positional_encoding_16']
     num_validation_logs: 10
 checkpoint:
     recipe: checkpoint|default

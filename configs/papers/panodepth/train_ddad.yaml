@@ -283,7 +283,7 @@ arch:
               # [IMPORTANT] DO NOT TURN THIS ON. We'll lose the sharpness of the depth map we get.
               downsample: False
               # depth_focal: 1.0
-              positional_encoding: 32
+              positional_encoding: 16
     losses:
         reprojection:
             # recipe: losses/reprojection|panodepth_mono_only

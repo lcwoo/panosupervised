@@ -14,7 +14,7 @@
 #
 # This experiment,
 #   - decoder.depth_hypothesis: [2, 3, 10, 30, 60, 90]
-#   - decoder.positional_encoder: 32
+#   - decoder.positional_encoder: 16
 #   - depth.recipe: networks/multicam_depth_net|panodepth_ddad
 #   - decoder.out_shape: [256, 2048]
 #   - batch_size: 2 x 4 GPUs (DDP)
@@ -43,7 +43,7 @@ arch:
               # # Control output scale further, since intrinsics are calculated from panocam definition (256 x 2048)
               # [IMPORTANT] DO NOT TURN THIS ON. We'll lose the sharpness of the depth map we get.
               downsample: False
-              positional_encoding: 32
+              positional_encoding: 16
     losses:
         reprojection:
             recipe: losses/reprojection|panodepth_mono_stereo
@@ -86,7 +86,7 @@ datasets:
 wandb:
     recipe: wandb|default
     project: vidar_panodepth_lambda_overfitting
-    tags: ['train_on_filtered_DDAD', 'depth_hypothesis', 'positional_encoding_32', 'mobilenet_encoders', 'large_panodepth']
+    tags: ['train_on_filtered_DDAD', 'depth_hypothesis', 'positional_encoding_16', 'mobilenet_encoders', 'large_panodepth']
     num_validation_logs: 10
 checkpoint:
     recipe: checkpoint|default

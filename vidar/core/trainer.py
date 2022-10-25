@@ -146,6 +146,7 @@ class Trainer:
             self.logger = WandbLogger(cfg.wandb, verbose=True)
             if add_checkpoint and not cfg_has(cfg.checkpoint, 'name'):
                 cfg.checkpoint.name = self.logger.run_name
+            self.logger.log_config(cfg)
         else:
             self.logger = None
 
@@ -153,9 +154,6 @@ class Trainer:
             self.checkpoint = ModelCheckpoint(cfg.checkpoint, verbose=True)
         else:
             self.checkpoint = None
-
-        if add_logger:
-            self.logger.log_config(cfg)
 
     def prep_saver(self, cfg, ckpt=None):
         """Prepare saver class if requested"""
@@ -515,4 +513,3 @@ class Trainer:
         """Test a model by running validation once"""
         dataloaders, prefixes = self.prepare_dataloaders(wrapper)
         self.validate('validation', dataloaders, prefixes, wrapper)
-

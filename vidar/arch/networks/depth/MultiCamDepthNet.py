@@ -138,7 +138,6 @@ class MultiCamDepthNet(BaseNet, ABC):
                                 for k in decoder_required_keys if k in sample}
 
         log_images = {}
-
         if 'encoders' in self.networks:
             # Per-camera encoders
             per_camera_features = {key: self.networks['encoders'][key](sample['rgb'])
@@ -167,4 +166,5 @@ class MultiCamDepthNet(BaseNet, ABC):
         return {
             'inv_depths': inv_depths,
             'log_images': log_images,
+            'encoder_features': {k: [f.detach() for f in feats] for k, feats in per_camera_features.items()},
         }

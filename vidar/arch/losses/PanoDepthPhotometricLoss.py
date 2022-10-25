@@ -1,5 +1,5 @@
 # TRI-VIDAR - Copyright 2022 Toyota Research Institute.  All rights reserved.
-
+import copy
 import numpy as np
 from collections import defaultdict
 from functools import partial
@@ -17,8 +17,7 @@ from vidar.utils.config import cfg_has
 from vidar.utils.depth import inv2depth, depth2inv
 from vidar.utils.distributed import print0
 from vidar.utils.tensor import interpolate, match_scales, make_same_resolution
-from vidar.utils.viz import viz_photo
-from vidar.utils.write import viz_depth
+from vidar.utils.viz import viz_photo, viz_depth, viz_feat, viz_rgb
 
 
 class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
@@ -31,13 +30,19 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
         #   - From "panodepth" prediction, we use flow reversal layer to reconstruct target_depth.
         #     then, use the target_depth to calculate reprojection from source
         loss_pairs = defaultdict(list)
+        cameras = set()
         for tgt, tgt_context_idx, src_cam, src_context_idx in cfg.reprojection_pairs:
             assert (tgt, tgt_context_idx) != (src_cam, src_context_idx), \
                 f'No reason to use exactly same coordinate to compute photometric loss: \n' \
                 + f'(tgt, tgt_context_idx) (src_cam, src_context_idx): ' \
                 + f'({tgt}, {tgt_context_idx}) ({src_cam}, {src_context_idx})'
             loss_pairs[(tgt, tgt_context_idx)].append((src_cam, src_context_idx))
+            cameras.add(tgt)
+            cameras.add(src_cam)
         self.pairs = loss_pairs
+
+        self.context_cameras = list(cameras)
+        self.context_sources = cfg_has(cfg, 'context_sources', ['rgb'])
 
         self.mono_weight = cfg_has(cfg, 'mono_weight', 0.5)
         self.stereo_weight = cfg_has(cfg, 'stereo_weight', 0.5)
@@ -53,10 +58,11 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
             self.interpolate = partial(
                 interpolate, mode='bilinear', scale_factor=None, align_corners=True)
 
-    def get_context_and_pose(self, batch_cam, context_idx):
+    def get_context_and_pose(self, batch_cam, context_idx, key):
         """Pose: from (ref_cam, context_idx) to (world, 0)"""
-        raw_rgb_key = 'raw_rgb' if self.training else 'rgb'
-        context = batch_cam[raw_rgb_key][context_idx]
+        if 'rgb' in key and not self.training:
+            key = 'rgb'
+        context = batch_cam[key][context_idx]
         # Cam to world (t=0)
         pose = batch_cam['extrinsics'][0].inverse()
         if context_idx != 0:
@@ -70,7 +76,7 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
         camera = Camera(K, hw, Tcw=Tcw.float(), name=cam_name)
         return camera
 
-    def compute_image_depth(self, pano_camera, imag_camera, pano_depths, return_logs=False):
+    def compute_image_depth(self, pano_camera, imag_camera, pano_depths, ctx_type, return_logs=False):
         """
         Compute depth on camera from pano_depth prediction using flow reversal layer
         """
@@ -102,7 +108,7 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
             imag_depths.append(imag_depth / (weights + 1e-6))
 
             if return_logs and i == 0:
-                self.log_images['warped_{}'.format(imag_camera.name)].append(
+                self.log_images['{}_warped_{}'.format(ctx_type, imag_camera.name)].append(
                     (viz_depth(imag_depths[-1][0, 0].detach().cpu()) * 255.0).astype(np.uint8))
 
         return imag_depths
@@ -228,6 +234,22 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
                     (viz_depth(batch['camera_pano']['depth'][ctx_log][0, 0].detach().cpu(), normalizer=normalizer) * 255.0).astype(np.uint8))
 
         ### Prepare target/source contexts
+        context_sources = defaultdict(lambda : defaultdict())
+        for cam in self.context_cameras:
+            # Required regardless of the context
+            context_sources[cam]['intrinsics'] = copy.deepcopy(batch[cam]['intrinsics'])
+            context_sources[cam]['extrinsics'] = copy.deepcopy(batch[cam]['extrinsics'])
+            context_sources[cam]['pose'] = copy.deepcopy(batch[cam]['pose'])
+
+            for ctx_src in self.context_sources:
+                if ctx_src.startswith('feat'):
+                    feat_num = int(ctx_src[len('feat'):])
+                    context_sources[cam][ctx_src] = {0: copy.deepcopy(output['encoder_features'][cam][feat_num].detach())}
+                else:
+                    if 'rgb' in ctx_src and not self.training:
+                        ctx_src = 'rgb'
+                    context_sources[cam][ctx_src] = copy.deepcopy(batch[cam][ctx_src])
+
         K_pano = batch[PANO_CAMERA_NAME]['intrinsics'][ctx_log].float()
         Twc_pano = batch[PANO_CAMERA_NAME]['Twc'].float()
         # TODO(soonminh): Fix this
@@ -237,128 +259,150 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
 
         losses = {}
         for (cam_tgt, context_idx_tgt), pairs in self.pairs.items():
-            # Prepare photometric loss on physical camera spaces via flow revsersal
-            context_tgt, T_tgt_to_world = self.get_context_and_pose(batch[cam_tgt], context_idx_tgt)
-            camera_tgt = self.get_camera(batch, cam_tgt, context_idx_tgt, T_tgt_to_world)
+            for ctx_type in self.context_sources:
+                viz_func = viz_feat if 'feat' in ctx_type else viz_rgb
+                # Prepare photometric loss on physical camera spaces via flow revsersal
+                # context_tgt, T_tgt_to_world = self.get_context_and_pose(batch[cam_tgt], context_idx_tgt)
 
-            if return_logs:
-                self.log_images['warped_{}'.format(cam_tgt)].append(
-                    (context_tgt[0].permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
+                # TODO(soonminh): now only "context 0" has encoder features
+                if context_idx_tgt != 0 and 'rgb' not in ctx_type:
+                    continue
 
-            # Apply flow reversal to get depth_tgt from depth_pano
-            depths_tgt = self.compute_image_depth(camera_pano, camera_tgt, pano_depths, return_logs)
-            contexts_tgt = match_scales(context_tgt, depths_tgt, self.n, align_corners=self.align_corners)
-
-            mask_tgt = batch[cam_tgt]['mask']
-            masks_tgt = match_scales(mask_tgt, depths_tgt, self.n, align_corners=self.align_corners)
-
-            if self.pano_weight > 0.0:
-                # Prepare photometric loss on pano camera space
-                contexts_tgt_on_pano = self.warp(camera_pano, pano_depths, camera_tgt, contexts_tgt)
-                masks_tgt_on_pano = self.warp(camera_pano, pano_depths, camera_tgt, masks_tgt)
-
-            if return_logs:
-                self.log_images['warped_{}'.format(cam_tgt)].append(
-                    (mask_tgt[0].repeat(3, 1, 1).permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
-                if self.pano_weight > 0.0:
-                    self.log_images['panodepth'].append(
-                            (contexts_tgt_on_pano[0][0].permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
-
-            photometric_losses_mono = [[] for _ in range(self.n)]
-            photometric_losses_stereo = [[] for _ in range(self.n)]
-            photometric_losses_on_pano = [[] for _ in range(self.n)]
-            for cam_src, context_idx_src in pairs:
-                context_src, T_src_to_world = self.get_context_and_pose(batch[cam_src], context_idx_src)
-                camera_src = self.get_camera(batch, cam_src, context_idx_src, T_src_to_world)
-
-                contexts_src = match_scales(context_src, depths_tgt, self.n, align_corners=self.align_corners)
-
-                mask_src = batch[cam_src]['mask']
-                masks_src = match_scales(mask_src, depths_tgt, self.n, align_corners=self.align_corners)
-                masks_src_warped = self.warp(camera_tgt, depths_tgt, camera_src, masks_src)
-                masks = [(masks_tgt[i] * masks_src_warped[i]).eq(1.0) for i in range(self.n)]
-
-                # Compute multi-scale photometric loss
-                contexts_tgt_warped = self.warp(camera_tgt, depths_tgt, camera_src, contexts_src)
-                photometric_loss = self.calc_photometric_loss(contexts_tgt_warped, contexts_tgt)
-
-                if self.pano_weight > 0.0:
-                    contexts_src_on_pano = self.warp(camera_pano, pano_depths, camera_src, contexts_src)
-                    masks_src_on_pano = self.warp(camera_pano, pano_depths, camera_src, masks_src)
-                    photometric_loss_on_pano = self.calc_photometric_loss(contexts_src_on_pano, contexts_tgt_on_pano)
-                    masks_on_pano = [(masks_tgt_on_pano[i] * masks_src_on_pano[i]).eq(1.0) for i in range(self.n)]
+                context_tgt, T_tgt_to_world = self.get_context_and_pose(context_sources[cam_tgt], context_idx_tgt, ctx_type)
+                camera_tgt = self.get_camera(batch, cam_tgt, context_idx_tgt, T_tgt_to_world)
 
                 if return_logs:
-                    self.log_images['warped_{}'.format(cam_tgt)].append(
-                        (contexts_tgt_warped[0][0].permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
-                    self.log_images['warped_{}'.format(cam_tgt)].append(
-                        (masks_src_warped[0][0].repeat(3, 1, 1).permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
-                    if self.pano_weight > 0.0:
-                        self.log_images['panodepth'].append(
-                            (contexts_src_on_pano[0][0].permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
+                    self.log_images['{}_warped_{}'.format(ctx_type, cam_tgt)].append(
+                        (viz_func(context_tgt[0]) * 255.0).astype(np.uint8))
+                        # (context_tgt[0].permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
 
-                # Apply mask
-                for i in range(self.n):
-                    photometric_loss[i][~masks[i]] = 0.0
-                    if cam_tgt == cam_src:
-                        photometric_losses_mono[i].append(photometric_loss[i])
-                    else:
-                        photometric_losses_stereo[i].append(photometric_loss[i])
+                # Apply flow reversal to get depth_tgt from depth_pano
+                depths_tgt = self.compute_image_depth(camera_pano, camera_tgt, pano_depths, ctx_type, return_logs)
+                contexts_tgt = match_scales(context_tgt, depths_tgt, self.n, align_corners=self.align_corners)
 
-                    if self.pano_weight > 0.0:
-                        photometric_loss_on_pano[i][~masks_on_pano[i]] = 0.0
-                        photometric_losses_on_pano[i].append(photometric_loss_on_pano[i])
+                mask_tgt = batch[cam_tgt]['mask']
+                masks_tgt = match_scales(mask_tgt, depths_tgt, self.n, align_corners=self.align_corners)
 
-                    if return_logs and i == 0:
-                        self.log_images['warped_{}'.format(cam_tgt)].append(
-                            (torch.sigmoid(photometric_loss[i].detach().float()).repeat(1, 3, 1, 1)[0].permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8))
-                            # (viz_photo(photometric_loss[0][0, 0].detach().cpu().numpy()) * 255.0).astype(np.uint8))
-                        if self.pano_weight > 0.0:
-                            self.log_images['panodepth'].append(
-                                (torch.sigmoid(photometric_loss_on_pano[i].detach().float()).repeat(1, 3, 1, 1)[0].permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8))
-
-            if self.automask_loss:
-                raw_rgb_key = 'raw_rgb' if self.training else 'rgb'
-                context_tgt_all = [raw_rgb for t, raw_rgb in batch[cam_tgt][raw_rgb_key].items() if t != context_idx_tgt]
-                for context_tgt_automask in context_tgt_all:
-                    contexts = match_scales(context_tgt_automask, depths_tgt, self.n, align_corners=self.align_corners)
-                    unwarped_image_loss = self.calc_photometric_loss(contexts, contexts_tgt)
-                    for i in range(self.n):
-                        photometric_losses_mono[i].append(unwarped_image_loss[i])
-
-            has_mono_loss = len(photometric_losses_mono[0]) > 0
-            loss_mono, per_pixel_loss_mono = self.reduce_photometric_loss(photometric_losses_mono, debug=return_logs) if has_mono_loss else (0.0, None)
-
-            has_stereo_loss = len(photometric_losses_stereo[0]) > 0
-            loss_stereo, per_pixel_loss_stereo = self.reduce_photometric_loss(photometric_losses_stereo, debug=return_logs) if has_stereo_loss else (0.0, None)
-
-            has_pano_loss = len(photometric_losses_on_pano[0]) > 0
-            loss_on_pano, per_pixel_loss_on_pano = self.reduce_photometric_loss(photometric_losses_on_pano, debug=return_logs) if has_pano_loss else (0.0, None)
-
-            loss_mono *= self.mono_weight
-            loss_stereo *= self.stereo_weight
-            loss_on_pano *= self.pano_weight
-
-            if return_logs:
-                if has_mono_loss:
-                    self.log_images['warped_{}'.format(cam_tgt)].append(
-                        (torch.sigmoid(per_pixel_loss_mono[0].detach().float()).repeat(1, 3, 1, 1)[0].permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8))
-                if has_stereo_loss:
-                    self.log_images['warped_{}'.format(cam_tgt)].append(
-                        (torch.sigmoid(per_pixel_loss_stereo[0].detach().float()).repeat(1, 3, 1, 1)[0].permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8))
                 if self.pano_weight > 0.0:
-                    self.log_images['panodepth'].append(
-                        (torch.sigmoid(per_pixel_loss_on_pano[0].detach().float()).repeat(1, 3, 1, 1)[0].permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8))
+                    # Prepare photometric loss on pano camera space
+                    contexts_tgt_on_pano = self.warp(camera_pano, pano_depths, camera_tgt, contexts_tgt)
+                    masks_tgt_on_pano = self.warp(camera_pano, pano_depths, camera_tgt, masks_tgt)
 
-            # Include smoothness loss if requested
-            if self.smooth_loss_weight > 0.0:
-                invdepths_tgt = depth2inv(depths_tgt)
-                invdepths_pano = depth2inv(pano_depths)
-                loss_mono += self.calc_smoothness_loss_masked(invdepths_tgt, contexts_tgt, masks_tgt)
-                # loss_on_pano += self.calc_smoothness_loss_masked(invdepths_pano, contexts_tgt_on_pano, masks_tgt_on_pano)
+                if return_logs:
+                    self.log_images['{}_warped_{}'.format(ctx_type, cam_tgt)].append(
+                        (mask_tgt[0].repeat(3, 1, 1).permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
+                    if self.pano_weight > 0.0:
+                        self.log_images['{}_panodepth'.format(ctx_type)].append(
+                                (viz_func(contexts_tgt_on_pano[0][0]) * 255.0).astype(np.uint8))
+                                # (contexts_tgt_on_pano[0][0].permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
 
-            # TODO(soonminh): if we see some artifacts in depth, we might consider min reprojection loss on all pano loss
-            losses[(cam_tgt, context_idx_tgt)] = loss_mono + loss_stereo + loss_on_pano
+                photometric_losses_mono = [[] for _ in range(self.n)]
+                photometric_losses_stereo = [[] for _ in range(self.n)]
+                photometric_losses_on_pano = [[] for _ in range(self.n)]
+                for cam_src, context_idx_src in pairs:
+                    # TODO(soonminh): now only "context 0" has encoder features
+                    if context_idx_src != 0 and 'rgb' not in ctx_type:
+                        continue
+
+                    # context_src, T_src_to_world = self.get_context_and_pose(batch[cam_src], context_idx_src)
+                    context_src, T_src_to_world = self.get_context_and_pose(context_sources[cam_src], context_idx_src, ctx_type)
+                    camera_src = self.get_camera(batch, cam_src, context_idx_src, T_src_to_world)
+
+                    contexts_src = match_scales(context_src, depths_tgt, self.n, align_corners=self.align_corners)
+
+                    mask_src = batch[cam_src]['mask']
+                    masks_src = match_scales(mask_src, depths_tgt, self.n, align_corners=self.align_corners)
+                    masks_src_warped = self.warp(camera_tgt, depths_tgt, camera_src, masks_src)
+                    masks = [(masks_tgt[i] * masks_src_warped[i]).eq(1.0) for i in range(self.n)]
+
+                    # Compute multi-scale photometric loss
+                    contexts_tgt_warped = self.warp(camera_tgt, depths_tgt, camera_src, contexts_src)
+                    photometric_loss = self.calc_photometric_loss(contexts_tgt_warped, contexts_tgt)
+
+                    if self.pano_weight > 0.0:
+                        contexts_src_on_pano = self.warp(camera_pano, pano_depths, camera_src, contexts_src)
+                        masks_src_on_pano = self.warp(camera_pano, pano_depths, camera_src, masks_src)
+                        photometric_loss_on_pano = self.calc_photometric_loss(contexts_src_on_pano, contexts_tgt_on_pano)
+                        masks_on_pano = [(masks_tgt_on_pano[i] * masks_src_on_pano[i]).eq(1.0) for i in range(self.n)]
+
+                    if return_logs:
+                        self.log_images['{}_warped_{}'.format(ctx_type, cam_tgt)].append(
+                            (viz_func(contexts_tgt_warped[0][0]) * 255.0).astype(np.uint8))
+                            # (contexts_tgt_warped[0][0].permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
+                        self.log_images['{}_warped_{}'.format(ctx_type, cam_tgt)].append(
+                            (masks_src_warped[0][0].repeat(3, 1, 1).permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
+                        if self.pano_weight > 0.0:
+                            self.log_images['{}_panodepth'.format(ctx_type)].append(
+                                (viz_func(contexts_src_on_pano[0][0]) * 255.0).astype(np.uint8))
+                                # (contexts_src_on_pano[0][0].permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
+
+                    # Apply mask
+                    for i in range(self.n):
+                        photometric_loss[i][~masks[i]] = 0.0
+                        if cam_tgt == cam_src:
+                            photometric_losses_mono[i].append(photometric_loss[i])
+                        else:
+                            photometric_losses_stereo[i].append(photometric_loss[i])
+
+                        if self.pano_weight > 0.0:
+                            photometric_loss_on_pano[i][~masks_on_pano[i]] = 0.0
+                            photometric_losses_on_pano[i].append(photometric_loss_on_pano[i])
+
+                        if return_logs and i == 0:
+                            self.log_images['{}_warped_{}'.format(ctx_type, cam_tgt)].append(
+                                (torch.sigmoid(photometric_loss[i].detach().float()).repeat(1, 3, 1, 1)[0].permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8))
+                                # (viz_photo(photometric_loss[0][0, 0].detach().cpu().numpy()) * 255.0).astype(np.uint8))
+                            if self.pano_weight > 0.0:
+                                self.log_images['{}_panodepth'.format(ctx_type)].append(
+                                    (torch.sigmoid(photometric_loss_on_pano[i].detach().float()).repeat(1, 3, 1, 1)[0].permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8))
+
+                if self.automask_loss:
+                    ctx_type_key = ctx_type
+                    if 'rgb' in ctx_type_key:
+                        ctx_type_key = 'raw_rgb' if self.training else 'rgb'
+                    context_tgt_all = [raw_rgb for t, raw_rgb in context_sources[cam_tgt][ctx_type_key].items() if t != context_idx_tgt]
+                    for context_tgt_automask in context_tgt_all:
+                        contexts = match_scales(context_tgt_automask, depths_tgt, self.n, align_corners=self.align_corners)
+                        unwarped_image_loss = self.calc_photometric_loss(contexts, contexts_tgt)
+                        for i in range(self.n):
+                            photometric_losses_mono[i].append(unwarped_image_loss[i])
+
+                has_mono_loss = len(photometric_losses_mono[0]) > 0
+                loss_mono, per_pixel_loss_mono = self.reduce_photometric_loss(photometric_losses_mono, debug=return_logs) if has_mono_loss else (0.0, None)
+
+                has_stereo_loss = len(photometric_losses_stereo[0]) > 0
+                loss_stereo, per_pixel_loss_stereo = self.reduce_photometric_loss(photometric_losses_stereo, debug=return_logs) if has_stereo_loss else (0.0, None)
+
+                has_pano_loss = len(photometric_losses_on_pano[0]) > 0
+                loss_on_pano, per_pixel_loss_on_pano = self.reduce_photometric_loss(photometric_losses_on_pano, debug=return_logs) if has_pano_loss else (0.0, None)
+
+                loss_mono *= self.mono_weight
+                loss_stereo *= self.stereo_weight
+                loss_on_pano *= self.pano_weight
+
+                if return_logs:
+                    if has_mono_loss:
+                        self.log_images['{}_warped_{}'.format(ctx_type, cam_tgt)].append(
+                            (torch.sigmoid(per_pixel_loss_mono[0].detach().float()).repeat(1, 3, 1, 1)[0].permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8))
+                    if has_stereo_loss:
+                        self.log_images['{}_warped_{}'.format(ctx_type, cam_tgt)].append(
+                            (torch.sigmoid(per_pixel_loss_stereo[0].detach().float()).repeat(1, 3, 1, 1)[0].permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8))
+                    if self.pano_weight > 0.0:
+                        self.log_images['{}_panodepth'.format(ctx_type)].append(
+                            (torch.sigmoid(per_pixel_loss_on_pano[0].detach().float()).repeat(1, 3, 1, 1)[0].permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8))
+
+                # Include smoothness loss if requested
+                if self.smooth_loss_weight > 0.0:
+                    invdepths_tgt = depth2inv(depths_tgt)
+                    invdepths_pano = depth2inv(pano_depths)
+                    loss_mono += self.calc_smoothness_loss_masked(invdepths_tgt, contexts_tgt, masks_tgt)
+                    # loss_on_pano += self.calc_smoothness_loss_masked(invdepths_pano, contexts_tgt_on_pano, masks_tgt_on_pano)
+
+                # TODO(soonminh) Make this configurable if needed
+                ctx_weight = 1.0 if 'rgb' in ctx_type else 2.0
+
+                # TODO(soonminh): if we see some artifacts in depth, we might consider min reprojection loss on all pano loss
+                losses[(ctx_type, cam_tgt, context_idx_tgt)] = (loss_mono + loss_stereo + loss_on_pano) * ctx_weight
 
         loss_sum = sum(losses.values()) / len(losses.values())
         if return_logs:

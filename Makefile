@@ -4,7 +4,7 @@ USER_NAME ?= ${shell whoami}
 
 PROJECT ?= panodepth-vidar
 WORKSPACE ?= /home/${USER_NAME}/workspace/${PROJECT}
-DOCKER_IMAGE ?= ${PROJECT}:${USER_NAME}
+DOCKER_IMAGE ?= ${PROJECT}:${USER_NAME}_20.04
 
 SHMSIZE ?= 444G
 WANDB_MODE ?= run
@@ -54,7 +54,7 @@ docker-build:
 		--build-arg USER_ID=${USER_ID} \
 		--build-arg GROUP_ID=${GROUP_ID} \
 		--build-arg USER_NAME=${USER_NAME} \
-		-f docker/Dockerfile \
+		-f docker/Dockerfile_ubuntu20.04_cuda11.3 \
 		-t ${DOCKER_IMAGE} .
 
 docker-interactive: docker-build

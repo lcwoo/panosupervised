@@ -139,3 +139,5 @@ RUN pip install jupyter
 
 # Downgrade protobuf due to wandb issue
 RUN pip install protobuf==3.20.*
+RUN pip install pycocotools nuscenes-devkit
+RUN pip install -U 'git+https://github.com/facebookresearch/fvcore'

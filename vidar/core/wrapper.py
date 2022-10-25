@@ -125,11 +125,60 @@ class Wrapper(torch.nn.Module, ABC):
                 update_schedulers = scheduler_dict.pop('update_schedulers', 'epoch')
                 scheduler_name = scheduler_dict.pop('name')
 
-                schedulers[key] = getattr(torch.optim.lr_scheduler, scheduler_name)(**{
-                    'optimizer': optimizers[key]['optimizer'],
-                    **scheduler_dict,
-                })
                 self.update_schedulers = update_schedulers
+
+                if scheduler_name in ('WarmupMultiStepLR', 'WarmupCosineLR', 'WarmupStepWithFixedGammaLR'):
+                    # Get scheduler from fvcore package
+                    from fvcore.common.param_scheduler import MultiStepParamScheduler
+                    from .lr_scheduler import LRMultiplier, WarmupParamScheduler
+
+                    if scheduler_name == "WarmupMultiStepLR":
+
+
+                        if verbose and rank() == 0:
+                            font = {'color': 'cyan', 'attrs': ('bold', 'dark')}
+                            print(pcolor('#' * 100, **font))
+                            print(pcolor('#' * 42 + ' Scheduler: WarmupMultiStepLR ' + '#' * 43, **font))
+                            print(pcolor('#' * 100, **font))
+
+                        steps = scheduler_dict.pop('steps')
+                        max_iter = scheduler_dict.pop('max_iter')
+                        gamma = scheduler_dict.pop('gamma')
+
+                        steps = [x for x in steps if x <= max_iter]
+                        # if len(steps) != len(steps):
+                        #     logger = logging.getLogger(__name__)
+                        #     logger.warning(
+                        #         "SOLVER.STEPS contains values larger than SOLVER.MAX_ITER. "
+                        #         "These values will be ignored."
+                        #     )
+                        sched = MultiStepParamScheduler(
+                            values=[gamma**k for k in range(len(steps) + 1)],
+                            milestones=steps,
+                            num_updates=max_iter,
+                        )
+                    else:
+                        raise NotImplementedError
+
+                    warmup_factor = scheduler_dict.pop('warmup_factor')
+                    warmup_iters = scheduler_dict.pop('warmup_iters')
+                    warmup_method = scheduler_dict.pop('warmup_method')
+
+                    sched = WarmupParamScheduler(
+                        sched,
+                        warmup_factor,
+                        min(warmup_iters / max_iter, 1.0),
+                        warmup_method,
+                        rescale_interval=False,
+                    )
+                    schedulers[key] = LRMultiplier(optimizers[key]['optimizer'], multiplier=sched, max_iter=max_iter)
+
+                else:
+                    schedulers[key] = getattr(torch.optim.lr_scheduler, scheduler_name)(**{
+                        'optimizer': optimizers[key]['optimizer'],
+                        **scheduler_dict,
+                    })
+
 
         # Return optimizer and scheduler
         return optimizers, schedulers
@@ -257,6 +306,3 @@ class Wrapper(torch.nn.Module, ABC):
         results = {'metrics': metrics, 'predictions': predictions}
         # Return final results
         return results
-
-
-

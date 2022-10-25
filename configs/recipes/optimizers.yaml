@@ -5,3 +5,18 @@ adam_20_05:
         name: StepLR
         step_size: 20
         gamma: 0.5
+
+adam_warmup_multistep:
+    name: Adam
+    lr: 0.0001
+    scheduler:
+      name: WarmupMultiStepLR
+      update_schedulers: step
+
+      max_iter: 7500 # 360000 / 48 (=batch_size * nGPUs)
+      steps: [5500, 6500, 7000]
+      gamma: 0.5
+
+      warmup_iters: 214   # = (10272 / 48) * 1 steps = 1 epoch
+      warmup_factor: 0.0001
+      warmup_method: "linear"

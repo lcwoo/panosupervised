@@ -83,7 +83,6 @@ class ResNetEncoder(nn.Module, ABC):
 
         self.reduction = np.array([2, 4, 8, 16, 32])
         self.num_ch_enc = np.array([64, 64, 128, 256, 512])
-        self.features = []
 
         assert cfg.version in RESNET_VERSIONS, f'Invalid ResNet version: {cfg.version}'
 
@@ -103,11 +102,11 @@ class ResNetEncoder(nn.Module, ABC):
         x = self.encoder.conv1(x)
         x = self.encoder.bn1(x)
 
-        self.features.clear()
-        self.features.append(self.encoder.relu(x))
-        self.features.append(self.encoder.layer1(self.encoder.maxpool(self.features[-1])))
-        self.features.append(self.encoder.layer2(self.features[-1]))
-        self.features.append(self.encoder.layer3(self.features[-1]))
-        self.features.append(self.encoder.layer4(self.features[-1]))
+        features = []
+        features.append(self.encoder.relu(x))
+        features.append(self.encoder.layer1(self.encoder.maxpool(features[-1])))
+        features.append(self.encoder.layer2(features[-1]))
+        features.append(self.encoder.layer3(features[-1]))
+        features.append(self.encoder.layer4(features[-1]))
 
-        return self.features
+        return features

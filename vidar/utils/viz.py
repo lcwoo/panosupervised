@@ -245,3 +245,57 @@ def viz_camera(camera):
         rays = camera.no_translation().get_viewdirs(normalize=True, flatten=False, to_world=True)
         rays = rays[0].permute(1, 2, 0).detach().cpu().numpy()
     return (rays + 1) / 2
+
+
+@iterate1
+@iterate1
+def viz_feat(feat, colormap='viridis'):
+    """
+    Returns a colorized version of the feats
+
+    Parameters
+    ----------
+    feat : torch.Tensor
+        Feature map
+    colormap : String
+        Which colormap to use
+
+    Returns
+    -------
+    colorized : np.Array
+        Colorized version of the feature map [H,W,3]
+    """
+    if is_tensor(feat):
+        if len(feat.shape) == 4:
+            feat = feat[0]
+        if len(feat.shape) == 3:
+            feat = feat.squeeze(0)
+
+    norm = torch.linalg.norm(feat.detach(), 2, dim=1, keepdim=True)
+    norm /= norm.max()
+    return viz_photo(norm[0], colormap)
+
+
+@iterate1
+@iterate1
+def viz_rgb(rgb):
+    """
+    Returns a permuted rgb array
+
+    Parameters
+    ----------
+    rgb : torch.Tensor
+        RGB tensor
+
+    Returns
+    -------
+    permuted : np.Array
+        Permuted RGB tensor [H,W,3]
+    """
+    if is_tensor(rgb):
+        if len(rgb.shape) == 4:
+            rgb = rgb[0]
+        if len(rgb.shape) == 3:
+            rgb = rgb.squeeze(0)
+
+    return rgb.permute(1, 2, 0).detach().cpu().numpy()

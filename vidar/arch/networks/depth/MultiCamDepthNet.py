@@ -16,6 +16,7 @@ from vidar.utils.tensor import make_same_resolution
 _KNOWN_DECODER_TYPES = (
     'PanoDepthDecoder',             # Proposed
     'SurroundDepthDecoder',         # SurroundDepth
+    'PanoTransformerDecoder',             # Proposed
 )
 
 def allow_multicam_input(func):
@@ -153,7 +154,8 @@ class MultiCamDepthNet(BaseNet, ABC):
 
         # Predict depth from multi-cam features
         out = self.networks['decoder'](per_camera_features, meta_info, return_logs)
-        log_images.update(out['log_images'])
+        if 'log_images' in out:
+            log_images.update(out['log_images'])
 
         inv_depths = [out[('output', i)] if ('output', i) in out else out[('disp', i)]
                         for i in range(self.num_scales)]
@@ -166,5 +168,5 @@ class MultiCamDepthNet(BaseNet, ABC):
         return {
             'inv_depths': inv_depths,
             'log_images': log_images,
-            'encoder_features': {k: [f.detach() for f in feats] for k, feats in per_camera_features.items()},
+            # 'encoder_features': {k: [f.detach() for f in feats] for k, feats in per_camera_features.items()},
         }

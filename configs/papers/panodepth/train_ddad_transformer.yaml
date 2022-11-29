@@ -1,0 +1,139 @@
+### Operation vacation
+# Default settings:
+#   - view-attention
+#   - decoder.out_shape: [128, 1024]
+#   - decoder.downsample: False
+#   - depth.min_depth: 2.0
+#   - reprojection.flow_downsampling: False
+#   - reprojection.upsample_depth: False
+#   - batch_size: 4 x 4 GPUs (DDP)
+#   - reprojection.mono_weight: 0.85
+#   - reprojection.stereo_weight: 0.15
+#   - reprojection.pano_weight: 1.0
+#   - reprojection.gamma: 1.0     (Turn-off scale weighting)
+#
+# This experiment,
+#   - decoder.depth_hypothesis: [2, 3, 10, 30, 60, 90]
+#   - decoder.positional_encoder: 16
+#   - depth.recipe: networks/multicam_depth_net|panodepth_ddad_resnet_shared
+
+wrapper:
+    recipe: wrapper|default
+    flip_lr_prob: 0.0
+    validate_flipped: False
+    validate_first: False
+    # max_epochs: 35
+    max_epochs: 50
+arch:
+    model:
+        file: depth/PanoCamSelfSupGTPoseModel
+        # checkpoint: pretrained/ResNet18_MR_selfsup_KITTI.ckpt
+        # checkpoint: pretrained/dulcet-plasma-9_epoch_007.ckpt
+        # mappings: [
+        #     [mono_encoder.encoder, encoder.encoder],
+        #     [mono_depth.decoder, decoder.decoder]
+        # ]
+        checkpoint_strict: True
+        convert_to_per_camera_depth: True   # Applied only at inference step
+    networks:
+        depth:
+            # recipe: networks/multicam_depth_net|panodepth_ddad_resnet_shared
+            recipe: networks/multicam_depth_net|panodepth_ddad_resnet
+
+            decoder:
+              file: decoders/PanoTransformerDecoder
+              # fusion_type: MultiDepthSweepFusion
+              ref_shape: [256, 2048]
+              out_shape: [256, 2048]
+              use_skips: True
+              activation: sigmoid
+              num_ch_out: 1
+              # downsample: False
+              downsample: True
+              # depth_focal: 1.0
+              # positional_encoding: 0
+
+            min_depth: 1.0
+            # max_depth: 200.0
+            max_depth: 110.0
+            scale_invdepth: inverse
+            # Note: downsampled panodepth can reduce computation and memory,
+            # but it makes the image depth blurry when filling the holes by interpolation.
+            # decoder:
+            #   # out_shape: [128, 1024]
+            #   # depth_hypothesis: [2, 3, 10, 30, 60, 90]
+            #   # view_attention: False
+            #   # # Control output scale further, since intrinsics are calculated from panocam definition (256 x 2048)
+            #   # [IMPORTANT] DO NOT TURN THIS ON. We'll lose the sharpness of the depth map we get.
+            #   # downsample: False
+            #   downsample: True
+            #   # positional_encoding: 16
+    losses:
+        reprojection:
+            recipe: losses/reprojection|panodepth_mono_stereo
+            automask_loss: True
+            # Note: flow_downsampling can help mitigate holes in image depth issue,
+            # but it makes the image depth blurry, so the smoothness calculated on image space
+            # cannot make panodepth smooth.
+            # Since current issue is "non-smooth panodepth" and "wrong depth" in very close region,
+            # let's turn this off at this moment.
+            flow_downsampling: True
+            upsample_depth: True
+            # context_sources: ['feat0', 'raw_rgb']
+            context_sources: ['raw_rgb']
+            gamma: 1.0      # turn-off scale weighting
+            mono_weight: 0.40
+            stereo_weight: 0.45
+            pano_weight: 0.15
+        smoothness:
+            recipe: losses/smoothness|default
+evaluation:
+    panodepth:
+        recipe: evaluation/depth|ddad_resize
+        post_process: False
+optimizers:
+    depth:
+        recipe: optimizers|adam_20_05
+        lr: 0.00005
+        scheduler:
+          step_size: 30
+
+        # recipe: optimizers|adam_warmup_multistep
+        # # warmup_iters: 214   # = (10272 / (12 * 4)) * 1 steps = 1 epoch
+        # warmup_iters: 642   # = (10272 / (4 * 4)) * 1 steps = 1 epoch
+        # # max_iter: 22500 # 360000 / 16 (=batch_size * nGPUs)
+        # max_iter: 45000 # 360000 * 2 / 16 (=batch_size * nGPUs)
+        # # steps: [16500, 19500, 21000]
+        # steps: [33000, 39000, 42000]
+
+datasets:
+    train:
+        # recipe: datasets/ddad|train_selfsup_panodepth
+        # path: [/data/datasets/DDAD/ddad_train_val/ddad_filtered.json]
+        recipe: datasets/ddad_tiny|train_selfsup_panodepth
+        labels: [depth, pose]
+        repeat: [1]
+        dataloader:
+          # batch_size: 4
+          batch_size: 1
+          num_workers: 8   # If pin_memory is True, requires ~59GB RAM per 8 workers
+          # batch_size: 2
+          # num_workers: 12   # If pin_memory is True, requires ~59GB RAM per 8 workers
+    validation:
+        recipe: datasets/ddad|validation_panodepth
+        # recipe: datasets/ddad_tiny|validation_panodepth
+        labels: [depth, pose]
+        dataloader:
+          batch_size: 1
+          num_workers: 8
+          # pin_memory: False
+wandb:
+    recipe: wandb|default
+    project: cvpr23_panodepth
+    # tags: ['more_loss_on_stereo', 'from_mnodepth_resnet18_all', 'flow_downsampling', 'upsample_depth', 'resnet18_shared', 'batch_4', 'warmup_1epoch_lr1e-4', 'train_on_filtered_DDAD', 'depth_hypothesis', 'positional_encoding_16', 'mobilenet_encoders']
+    tags: ['transformer_naive', 'overfit']
+    num_validation_logs: 10
+checkpoint:
+    recipe: checkpoint|default
+
+dry_run: False

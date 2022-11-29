@@ -14,25 +14,28 @@ arch:
 evaluation:
     depth:
         recipe: evaluation/depth|ddad_resize
+        post_process: True
+        only_first: True
+        show_sensor_name: True
 datasets:
     validation:
-        # recipe: datasets/ddad|validation_6cams
-        recipe: datasets/ddad_tiny|validation_6cams
-        path: [
-            /data/datasets/DDAD/ddad_train_val/ddad_000186.json,
-            # /data/datasets/DDAD/ddad_train_val/ddad_000179.json,
-            # /data/datasets/DDAD/ddad_train_val/ddad_000171.json,
-            # /data/datasets/DDAD/ddad_train_val/ddad_000169.json,
-            # /data/datasets/DDAD/ddad_train_val/ddad_000168.json,
-            # /data/datasets/DDAD/ddad_train_val/ddad_000167.json,
-            # /data/datasets/DDAD/ddad_train_val/ddad_000160.json,
-            # /data/datasets/DDAD/ddad_train_val/ddad_000158.json,
-            # /data/datasets/DDAD/ddad_train_val/ddad_000157.json,
-            # /data/datasets/DDAD/ddad_train_val/ddad_000155.json,
-            # /data/datasets/DDAD/ddad_train_val/ddad_000153.json,
-        ]
-save:
-    recipe: save|depth_splitname
-    rgb: [gt, tgt]
-    depth: [gt_viz, gt_npz, viz, npz]
-    naming: filename
+        recipe: datasets/ddad|validation_6cams
+        # recipe: datasets/ddad_tiny|validation_6cams
+        # path: [
+        #     /data/datasets/DDAD/ddad_train_val/ddad_000186.json,
+        #     # /data/datasets/DDAD/ddad_train_val/ddad_000179.json,
+        #     # /data/datasets/DDAD/ddad_train_val/ddad_000171.json,
+        #     # /data/datasets/DDAD/ddad_train_val/ddad_000169.json,
+        #     # /data/datasets/DDAD/ddad_train_val/ddad_000168.json,
+        #     # /data/datasets/DDAD/ddad_train_val/ddad_000167.json,
+        #     # /data/datasets/DDAD/ddad_train_val/ddad_000160.json,
+        #     # /data/datasets/DDAD/ddad_train_val/ddad_000158.json,
+        #     # /data/datasets/DDAD/ddad_train_val/ddad_000157.json,
+        #     # /data/datasets/DDAD/ddad_train_val/ddad_000155.json,
+        #     # /data/datasets/DDAD/ddad_train_val/ddad_000153.json,
+        # ]
+# save:
+#     recipe: save|depth_splitname
+#     rgb: [gt, tgt]
+#     depth: [gt_viz, gt_npz, viz, npz]
+#     naming: filename

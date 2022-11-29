@@ -71,7 +71,7 @@ class SurroundDepthDecoder(nn.Module, ABC):
         self.decoder_cross = nn.ModuleList(list(self.cross.values()))
 
 
-    def forward(self, input_features, meta):
+    def forward(self, input_features, meta, return_logs=False):
         self.outputs = {}
         for i in range(len(input_features)):
             B, C, H, W = input_features[i].shape

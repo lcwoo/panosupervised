@@ -22,3 +22,4 @@ sd_ddad:
         use_skips: True
     min_depth: 0.1
     max_depth: 200.0
+    scale_invdepth: inverse

@@ -6,6 +6,7 @@ panodepth_ddad:
     file: depth/MultiCamDepthNet
     min_depth: 1.0
     max_depth: 200.0
+    scale_invdepth: inverse
 
     encoders:
         camera_01:
@@ -55,6 +56,7 @@ panodepth_ddad_resnet:
     file: depth/MultiCamDepthNet
     min_depth: 1.0
     max_depth: 200.0
+    scale_invdepth: inverse
 
     encoders:
         camera_01:
@@ -110,6 +112,7 @@ panodepth_ddad_resnet_shared:
     file: depth/MultiCamDepthNet
     min_depth: 1.0
     max_depth: 200.0
+    scale_invdepth: inverse
     freeze_encoders: False
     input_cameras: [
         camera_01,

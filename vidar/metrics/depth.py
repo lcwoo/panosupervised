@@ -33,6 +33,7 @@ class DepthEvaluation(BaseEvaluation):
         self.post_process = cfg_has(cfg, 'post_process', False)
         self.median_scaling = cfg_has(cfg, 'median_scaling', False)
         self.valid_threshold = cfg.has('valid_threshold', None)
+        self.show_sensor_name = cfg_has(cfg, 'show_sensor_name', False)
 
         if self.post_process:
             self.modes += ['pp']
@@ -204,7 +205,7 @@ class DepthEvaluation(BaseEvaluation):
                         if pred.dim() == 4:
                             suffix = '(%s)' % str(ctx) + ('_%d' % i if not self.only_first else '')
                             for mode in self.modes:
-                                metrics[f'{key}|{mode}{suffix}'] = \
+                                metrics[f'{key} | {mode}{suffix}'] = \
                                     self.compute(
                                         gt=gt,
                                         pred=pred_pp if 'pp' in mode else pred,
@@ -212,10 +213,12 @@ class DepthEvaluation(BaseEvaluation):
                                         mask=gt_mask,
                                     )
                         elif pred.dim() == 5:
-                            for j in range(pred.shape[1]):
-                                suffix = '(%s_%d)' % (str(ctx), j) + ('_%d' % i if not self.only_first else '')
+                            sensor_names = [s[0] for s in batch['sensor_name']]
+                            for j, name in enumerate(sensor_names):
+                                suffix = '({}_{})'.format(ctx, name if self.show_sensor_name else j)
+                                suffix += ('_{}'.format(i) if not self.only_first else '')
                                 for mode in self.modes:
-                                    metrics[f'{key}|{mode}{suffix}'] = self.compute(
+                                    metrics[f'{key} | {mode}{suffix}'] = self.compute(
                                         gt=gt[:, j],
                                         pred=pred_pp[:, j] if 'pp' in mode else pred[:, j],
                                         use_gt_scale='gt' in mode,
@@ -268,3 +271,123 @@ class PanoDepthEvaluation(DepthEvaluation):
         #     predictions_all.update(predictions)
 
         # return metrics_all, predictions_all
+
+
+class MaskedDepthEvaluation(DepthEvaluation):
+    """
+    Masked depth evaluation metrics
+        e.g. evaluate on each angular/distance range
+
+    Parameters
+    ----------
+    cfg : Config
+        Configuration file
+    """
+    def __init__(self, cfg):
+        super().__init__(cfg, name='depth', task='masked_depth')
+
+        dparams = cfg.distance_ranges
+        self.distance_ranges = [(s, e) for s, e in zip(
+            range(dparams['start'], dparams['end'], dparams['delta']),
+            range(dparams['start'] + dparams['delta'], dparams['end']+1e-5, dparams['delta']))]
+
+        aparams = cfg.angular_ranges
+        self.angular_ranges = [(s, e) for s, e in zip(
+            range(aparams['start'], aparams['end'], aparams['delta']),
+            range(aparams['start'] + aparams['delta'], aparams['end']+1e-5, aparams['delta']))]
+
+        # To avoid showing too many numbers
+        self.only_first = True
+
+    def evaluate(self, batch, output, flipped_output=None):
+        import copy
+        from itertools import product as iter_product
+        import pdb; pdb.set_trace()
+        results = dict()
+        for ii, ((dstart, dend), (astart, aend)) in enumerate(iter_product(self.distance_ranges, self.angular_ranges)):
+            new_batch = copy.deepcopy(batch)
+            eval_mask = new_batch.get('eval_mask', True)
+
+            depth = batch[self.name][0]
+            hor_angle = batch[self.name][0]
+            eval_mask = eval_mask & \
+                        (depth > dstart) & (depth <= dend) \
+                        (hor_angle > astart) & (hor_angle <= aend)
+            new_batch['eval_mask'] = eval_mask
+
+            results[(dstart, dend), (astart, aend)] = super().evaluate(new_batch, output, flipped_output)[0]
+
+        # Aggregate results
+
+        return results
+
+    # def evaluate(self, batch, output, flipped_output=None):
+    #     """
+    #     Evaluate predictions
+
+    #     Parameters
+    #     ----------
+    #     batch : Dict
+    #         Dictionary containing ground-truth information
+    #     output : Dict
+    #         Dictionary containing predictions
+    #     flipped_output : Bool
+    #         Optional flipped output for post-processing
+
+    #     Returns
+    #     -------
+    #     metrics : Dict
+    #         Dictionary with calculated metrics
+    #     predictions : Dict
+    #         Dictionary with additional predictions
+    #     """
+    #     metrics, predictions = {}, {}
+    #     if self.name not in batch:
+    #         return metrics, predictions
+    #     # For each output item
+    #     for key, val in output.items():
+    #         # If it corresponds to this task
+    #         if key.startswith(self.name) and 'debug' not in key:
+    #             # Loop over every context
+    #             val = val if is_dict(val) else {0: val}
+    #             for ctx in val.keys():
+    #                 # Loop over every scale
+    #                 for i in range(1 if self.only_first else len(val[ctx])):
+
+    #                     pred = val[ctx][i]
+    #                     gt = batch[self.name][ctx]
+    #                     gt_mask = batch.get('eval_mask', None)
+
+    #                     if self.post_process:
+    #                         pred_flipped = flipped_output[key][ctx][i]
+    #                         pred_pp = post_process_depth(pred, pred_flipped, method='mean')
+    #                     else:
+    #                         pred_pp = None
+
+    #                     if i > 0:
+    #                         pred = self.interp_nearest(pred, val[ctx][0])
+    #                         if self.post_process:
+    #                             pred_pp = self.interp_nearest(pred_pp, val[ctx][0])
+
+    #                     if pred.dim() == 4:
+    #                         suffix = '(%s)' % str(ctx) + ('_%d' % i if not self.only_first else '')
+    #                         for mode in self.modes:
+    #                             metrics[f'{key}|{mode}{suffix}'] = \
+    #                                 self.compute(
+    #                                     gt=gt,
+    #                                     pred=pred_pp if 'pp' in mode else pred,
+    #                                     use_gt_scale='gt' in mode,
+    #                                     mask=gt_mask,
+    #                                 )
+    #                     elif pred.dim() == 5:
+    #                         for j in range(pred.shape[1]):
+    #                             suffix = '(%s_%d)' % (str(ctx), j) + ('_%d' % i if not self.only_first else '')
+    #                             for mode in self.modes:
+    #                                 metrics[f'{key}|{mode}{suffix}'] = self.compute(
+    #                                     gt=gt[:, j],
+    #                                     pred=pred_pp[:, j] if 'pp' in mode else pred[:, j],
+    #                                     use_gt_scale='gt' in mode,
+    #                                     mask=gt_mask,
+    #                                 )
+
+    #     return dict_remove_nones(metrics), predictions

@@ -4,12 +4,13 @@ import os
 import pickle
 
 import numpy as np
+import torch
+
 from dgp.utils.camera import Camera
 from dgp.utils.pose import Pose
 
 from vidar.datasets.BaseDataset import BaseDataset
-from vidar.datasets.utils.misc import \
-    stack_sample, make_relative_pose
+from vidar.datasets.utils.misc import stack_sample, make_relative_pose
 from vidar.utils.data import make_list
 from vidar.utils.read import read_image
 from vidar.utils.types import is_str
@@ -32,7 +33,7 @@ def save_to_file(filename, data_dict):
     np.savez_compressed(filename, **data_dict)
 
 
-def generate_proj_maps(camera, Xw, shape):
+def generate_proj_maps(camera, Xw, Xl, shape):
     """Render pointcloud on image.
 
     Parameters
@@ -41,6 +42,8 @@ def generate_proj_maps(camera, Xw, shape):
         Camera object with appropriately set extrinsics wrt world.
     Xw: np.Array
         3D point cloud (x, y, z) in the world coordinate. [N,3]
+    Xl: np.Array
+        3D point cloud (x, y, z) in the lidar coordinate. [N,3]
     shape: np.Array
         Output depth image shape [H, W]
 
@@ -64,8 +67,17 @@ def generate_proj_maps(camera, Xw, shape):
     uv, z_c = uv[in_view], z_c[in_view]
     proj_depth[uv[:, 1], uv[:, 0]] = z_c
 
-    # Return projected maps
-    return proj_depth
+    # Calculate yaw angle in LiDAR coordinate
+    xx = Xl[in_view][:, 0]
+    yy = Xl[in_view][:, 1]
+    yaw = np.arctan2(yy, xx + 1e-6)
+
+    # HACK(soonminh): Reverse yaw to make it clockwise and add pi to start from backward
+    yaw = -yaw + np.pi
+
+    proj_angle = np.zeros((H, W), dtype=np.float32)
+    proj_angle[uv[:, 1], uv[:, 0]] = yaw
+    return proj_depth, proj_angle
 
 
 class OuroborosDataset(BaseDataset):
@@ -254,8 +266,9 @@ class OuroborosDataset(BaseDataset):
         # Load and return if exists
         try:
             # Get cached depth map
-            depth = load_from_file(filename_depth, 'depth')
-            return depth
+            # depth = load_from_file(filename_depth, 'depth')
+            depth, angle = load_from_file(filename_depth, ['depth', 'angle'])
+            return depth, angle
         except:
             pass
         # Calculate world points if needed
@@ -269,11 +282,11 @@ class OuroborosDataset(BaseDataset):
         camera = self.create_camera(camera_idx, context)
         image_shape = self.get_current_or_context('rgb', camera_idx, context).size[::-1]
         # Generate depth maps
-        depth  = generate_proj_maps(camera, world_points, image_shape)
+        depth, angle  = generate_proj_maps(camera, world_points, lidar_points, image_shape)
         # Save depth map
-        save_to_file(filename_depth, 'depth', depth)
+        save_to_file(filename_depth, {'depth': depth, 'angle': angle})
         # Return depth
-        return depth
+        return depth, angle
 
 
     def get_current(self, key, sensor_idx, as_dict=False):
@@ -385,11 +398,12 @@ class OuroborosDataset(BaseDataset):
             # If depth is returned
             if self.with_depth:
                 # Get depth maps
-                depth = self.create_proj_maps(
+                depth, angle = self.create_proj_maps(
                     filename, i, self.depth_idx, self.depth_type)
                 # Include depth map
                 sample.update({
-                    'depth': {0: depth}
+                    'depth': {0: depth},
+                    'angle': {0: angle},
                 })
 
             # If input depth is returned
@@ -438,7 +452,7 @@ class OuroborosDataset(BaseDataset):
                     depth_context = [
                         self.create_proj_maps(
                             filename, i, self.depth_idx, self.depth_type,
-                            context=k)
+                            context=k)[0]
                         for k, filename in enumerate(filename_context)]
                     sample['depth'].update(
                         {key: val for key, val in zip(

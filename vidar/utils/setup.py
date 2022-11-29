@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import ConcatDataset, DataLoader
 
 from vidar.datasets.utils.transforms import get_transforms
-from vidar.metrics.depth import DepthEvaluation, PanoDepthEvaluation
+from vidar.metrics.depth import DepthEvaluation, PanoDepthEvaluation, MaskedDepthEvaluation
 from vidar.utils.config import get_folder_name, load_class, \
     recursive_assignment, cfg_has, cfg_add_to_dict, get_from_cfg_list
 from vidar.utils.config import merge_dict, to_namespace
@@ -244,6 +244,7 @@ def setup_metrics(cfg):
     """
 
     methods = {
+        'masked_depth': MaskedDepthEvaluation,
         'depth': DepthEvaluation,
         'panodepth': PanoDepthEvaluation,
     }

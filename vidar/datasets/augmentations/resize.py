@@ -37,7 +37,7 @@ def resize_pil(image, shape, interpolation=InterpolationMode.LANCZOS):
 
 
 @iterate1
-def resize_npy(depth, shape, expand=True):
+def resize_npy(depth, shape, expand=True, transpose=None):
     """
     Resizes depth map
 
@@ -49,7 +49,8 @@ def resize_npy(depth, shape, expand=True):
         Output shape (H,W)
     expand : Bool
         Expand output to [H,W,1]
-
+    transpose: Tuple
+        Dimensions to traspose before resize (dim1, dim2, ..., dimn)
     Returns
     -------
     depth : np.Array
@@ -58,8 +59,13 @@ def resize_npy(depth, shape, expand=True):
     # If a single number is provided, use resize ratio
     if not is_seq(shape):
         shape = tuple(int(s * shape) for s in depth.shape)
+    if is_seq(transpose):
+        depth = depth.transpose(transpose)
     # Resize depth map
     depth = cv2.resize(depth, dsize=tuple(shape[::-1]), interpolation=cv2.INTER_NEAREST)
+    if is_seq(transpose):
+        transpose_back = tuple([transpose.index(n) for n in range(len(transpose))])
+        depth = depth.transpose(transpose_back)
     # Return resized depth map
     return np.expand_dims(depth, axis=2) if expand else depth
 
@@ -227,6 +233,9 @@ def resize_sample_input(sample, shape, shape_supervision=None,
     # Mask
     for key in keys_with(sample, 'mask', without='raw'):
         sample[key] = resize_pil(sample[key], shape, interpolation=InterpolationMode.NEAREST)
+    # Rays
+    for key in keys_with(sample, 'rays'):
+        sample[key] = resize_npy(sample[key], shape, expand=False, transpose=(1, 2, 0))
     # Input depth
     for key in keys_with(sample, 'input_depth'):
         shape_depth = [int(s * depth_downsample) for s in shape]

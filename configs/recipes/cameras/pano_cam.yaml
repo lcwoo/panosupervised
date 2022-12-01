@@ -15,3 +15,13 @@ panocam2:
     rho: 1.0
     phi_range: [0, 6.2831853072]    # 6.2831853072 = 2 * pi
     z_range: [-0.2, 0.2]
+
+panocam3:
+    name: panocam_56_0_150_z_-02_+02
+    # position_in_world: [0.7, 0, 1.5]
+    position_in_world: [0.56, 0, 1.5]
+    height: 256
+    width: 2048
+    rho: 1.0
+    phi_range: [0, 6.2831853072]    # 6.2831853072 = 2 * pi
+    z_range: [-0.2, 0.2]

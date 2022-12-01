@@ -71,6 +71,11 @@ class BaseDataset(Dataset, ABC):
     # Label properties
 
     @property
+    def with_rays(self):
+        """If dataset contains rays"""
+        return 'rays' in self.labels
+
+    @property
     def with_depth(self):
         """If dataset contains depth"""
         return 'depth' in self.labels

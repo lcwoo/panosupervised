@@ -97,6 +97,14 @@ RUN apt-get update && \
     ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
     dpkg-reconfigure --frontend noninteractive tzdata
 
+# (Optional) Install packages
+RUN pip install jupyter jupyterlab
+RUN pip install pycocotools nuscenes-devkit
+
+# Downgrade protobuf due to wandb issue
+RUN pip install protobuf==3.20.*
+RUN pip install -U 'git+https://github.com/facebookresearch/fvcore'
+
 # (Optional) Add user
 ARG USER_ID
 ARG GROUP_ID
@@ -134,10 +142,6 @@ ENV PYTHONPATH="/home/${USER_NAME}/workspace/${PROJECT}/externals/camviz:$PYTHON
 RUN echo "export PS1='(docker) \[\e[32m\](\D{%T})\[\e[0m\] \[\e[33m\]\u@\h:\w\[\e[0m\]\$ '" >> /home/$USER_NAME/.bashrc
 
 # Expose Port for jupyter (8888)
-EXPOSE 8888
-RUN pip install jupyter
+# EXPOSE 8989
 
-# Downgrade protobuf due to wandb issue
-RUN pip install protobuf==3.20.*
-RUN pip install pycocotools nuscenes-devkit
-RUN pip install -U 'git+https://github.com/facebookresearch/fvcore'
+# ENV PATH="/home/${USER_NAME}/.local/bin:$PATH"

@@ -24,7 +24,7 @@ class PanoCamSelfSupGTPoseModel(BaseModel):
         super().__init__(cfg)
 
         self.gt_pose = True
-        self._input_keys = ('rgb', 'intrinsics', 'pose_to_pano')
+        self._input_keys = ('rgb', 'intrinsics', 'pose_to_pano', 'rays_embedding')
         self.produce_to_per_camera_depth = cfg_has(cfg.model, 'produce_to_per_camera_depth', False)
         self.produce_pano_image = cfg_has(cfg.model, 'produce_pano_image', False)
         self.flow_reverse = FlowReversal()

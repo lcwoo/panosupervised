@@ -49,11 +49,13 @@ class PanoTransformerDecoder(nn.Module, ABC):
             input_channel = scale_and_shape[0][1][0]
             # downsample_ratio = scale_and_shape[0][0]
             downsample_ratio = 2 ** (max(0, self.num_scales - i - 1))
+            # downsample_ratio = 2 ** (max(0, self.num_scales - i - 2))
             # downsample_ratio = 2 ** (i + 1)
             # iter_num = 4
             output_scale = scale_and_shape[0][2]
             out_size_downsampled = [s // output_scale for s in cfg.out_shape]
             iter_num = 1
+            # print('[i: {}] downsample_ratio: {}'.format(i, downsample_ratio))
             aggregator.append(PanoCrossViewTransformer(input_channel, out_size_downsampled, downsample_ratio=downsample_ratio, iter_num=iter_num))
         self.view_aggregator = nn.ModuleList(aggregator)
 
@@ -132,23 +134,22 @@ class PanoTransformerDecoder(nn.Module, ABC):
         """Network forward pass"""
         # TODO(soonminh): return features for analysis/debugging
         input_agg_feats = []
-
         for i in range(self.num_scales + 1):
             # features_scale = {cam: cam_feats[i] for cam, cam_feats in input_features.items()}
             # agg_feats = self.camera_fusions[i](features_scale, meta, return_logs)
             input_features_scale = torch.stack([cam_feats[i] for cam, cam_feats in input_features.items()], axis=1)
             agg_feats = self.view_aggregator[i](input_features_scale, meta)
+            # print('[i: {}] input_features_scale: {}, agg_feats: {}'.format(i, input_features_scale.shape, agg_feats.shape))
             input_agg_feats.append(agg_feats)
 
         outputs = {'log_images': {}}
-
         if return_logs:
             outputs['log_images'] = {'input_agg_feats': []}
             for _feat in input_agg_feats:
                 norm = torch.linalg.norm(_feat.detach(), 2, dim=1, keepdim=True)
                 norm /= norm.max()
                 outputs['log_images']['input_agg_feats'].append(
-                    (viz_photo(norm[0]) * 255.0).astype(np.uint8)
+                    (viz_photo(norm[0], normalize=True) * 255.0).astype(np.uint8)
                 )
 
         x = input_agg_feats[-1]

@@ -133,7 +133,7 @@ validation_6cams:
 
 train_selfsup_panodepth:
     pano_cam_config:
-        recipe: cameras/pano_cam|panocam2
+        recipe: cameras/pano_cam|panocam3
     name: [PanoCamOuroboros]
     masks: ['/data/datasets/DDAD/mask']
     path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
@@ -153,7 +153,7 @@ train_selfsup_panodepth:
 
 validation_panodepth:
     pano_cam_config:
-        recipe: cameras/pano_cam|panocam2
+        recipe: cameras/pano_cam|panocam3
     name: [PanoCamOuroboros]
     masks: ['/data/datasets/DDAD/mask']
     path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]

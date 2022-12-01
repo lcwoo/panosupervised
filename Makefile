@@ -60,9 +60,10 @@ docker-build:
 docker-interactive: docker-build
 	nvidia-docker run ${DOCKER_OPTS} --name ${PROJECT}_interactive ${DOCKER_IMAGE} /bin/bash
 
-docker-jupyter:
+docker-jupyter: docker-build
 	nvidia-docker run ${DOCKER_OPTS} --name ${PROJECT}_jupyter ${DOCKER_IMAGE} \
-		bash -c "jupyter notebook --port=8888 --ip=0.0.0.0 --allow-root --no-browser --notebook-dir=${WORKSPACE}"
+		bash -c "jupyter lab --port=8989 --ip=0.0.0.0 --allow-root --no-browser --notebook-dir=${WORKSPACE}"
+		# bash -c "jupyter notebook --port=8989 --ip=0.0.0.0 --allow-root --no-browser --notebook-dir=${WORKSPACE}"
 
 docker-run: docker-build
 	nvidia-docker run ${DOCKER_OPTS} --name ${PROJECT} ${DOCKER_IMAGE} bash -c "${COMMAND}"

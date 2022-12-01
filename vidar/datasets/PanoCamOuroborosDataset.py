@@ -93,6 +93,79 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         self.pano_name = pano_cfg.name
         self.pano_cfg = pano_cfg.dict
 
+    def panodepth_to_points(self, distance):
+        """
+        Unproject depth from a camera's perspective into a world-frame pointcloud
+
+        Parameters
+        ----------
+        depth : np.Array
+            Depth map to be lifted [H,W]
+        datum_idx : Int
+            Index of the camera
+        coord: String (world, ego, cam)
+            Coordinate of the output points
+
+        Returns
+        -------
+        pointcloud : np.Array
+            Lifted 3D pointcloud [Nx3]
+        """
+        params = PanoCamera.params_from_config(self.pano_cfg)
+        hw = params['hw']
+        K = params['K']
+
+        Twc = params['Twc']
+        h, w = hw
+        pcl = PanoCamera(K[None], hw, Twc=Twc[None]).reconstruct_depth_map(
+            distance * torch.ones([1, 1, h, w]), to_world=True)
+        return pcl.numpy().reshape(3, -1).T
+
+
+    def create_pano_rays(self, distance=1.0):
+        image_shape = PanoCamera.params_from_config(self.pano_cfg)['hw']
+        pcl = self.panodepth_to_points(distance)
+
+        ### Calculate polar/azimuth angles in LiDAR coordinate
+        # [LiDAR coordinate convention] https://en.wikipedia.org/wiki/Spherical_coordinate_system
+        #   (X, Y, Z) = (N, W, U), where northing (N), westing(W), and upwardness (U)
+        #   polar angle (theta): measured from a fixed zenith direction
+        #   azimuth angle (phi): measured from negative X-axis (southing, S) on a reference (XY-) plane
+        r = np.linalg.norm(pcl, 2, axis=1)
+        x, y, z = pcl.T
+
+        # measured from Z-axis
+        theta = np.arccos(z / (r + 1e-6))
+        # measured from X-axis, counterclockwise
+        phi = np.arctan2(y, x + 1e-6)
+        # Make phi positive/clockwise angle
+        phi = -phi + np.pi
+
+        rays = np.stack([theta, phi], axis=0).reshape(2, *image_shape)
+        return rays
+
+
+        ### Calculate polar/azimuth angles in LiDAR coordinate
+        # [LiDAR coordinate convention] https://en.wikipedia.org/wiki/Spherical_coordinate_system
+        #   (X, Y, Z) = (N, W, U), where northing (N), westing(W), and upwardness (U)
+        #   polar angle (theta): measured from a fixed zenith direction
+        #   azimuth angle (phi): measured from negative X-axis (southing, S) on a reference (XY-) plane
+
+        image_shape = (self.pano_cfg['height'], self.pano_cfg['width'])
+
+        # TODO(soonminh): change to spherical coordinate
+        rho = self.pano_cfg['rho']
+        theta_range = [np.arctan2(abs(z), rho) for z in self.pano_cfg['z_range']]
+        theta_range[0] = np.pi / 2 - theta_range[0]
+        theta_range[1] += np.pi / 2
+
+        theta = np.linspace(*theta_range, num=image_shape[0])
+        phi = np.linspace(0, 2 * np.pi + 1e-6, num=image_shape[1])
+
+        theta, phi = np.meshgrid(theta, phi, indexing='ij')
+        rays = np.stack([theta, phi], axis=0)
+        return rays
+
     def create_pano_proj_maps(self, filename, K, hw, Twc, depth_idx, depth_type):
         """
         Creates the depth map for a camera by projecting LiDAR information.
@@ -179,6 +252,20 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
             'Twc': Twc,
             # 'extrinsics': {0: extrinsics}
         }
+
+        # Rays
+        if self.with_rays:
+            rays = self.create_pano_rays()
+            embedding = np.stack([
+                np.sin(rays[0]),
+                np.cos(rays[0]),
+                np.sin(rays[1]),
+                np.cos(rays[1]),
+            ], axis=0)
+            samples[PANO_CAMERA_NAME.lower()].update({
+                'rays': {0: rays},
+                'rays_embedding': {0: embedding},
+            })
 
         for i in range(self.num_cameras):
             camera = self.get_current('datum_name', i).lower()

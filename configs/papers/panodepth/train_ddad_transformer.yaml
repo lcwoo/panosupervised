@@ -22,23 +22,26 @@ wrapper:
     flip_lr_prob: 0.0
     validate_flipped: False
     validate_first: False
-    # max_epochs: 35
-    max_epochs: 50
+    max_epochs: 10
+    # max_epochs: 50
 arch:
     model:
         file: depth/PanoCamSelfSupGTPoseModel
-        # checkpoint: pretrained/ResNet18_MR_selfsup_KITTI.ckpt
+        checkpoint: pretrained/ResNet18_MR_selfsup_KITTI.ckpt
+        mappings: [
+            [mono_encoder.encoder, encoder.encoder]
+        ]
         # checkpoint: pretrained/dulcet-plasma-9_epoch_007.ckpt
         # mappings: [
         #     [mono_encoder.encoder, encoder.encoder],
         #     [mono_depth.decoder, decoder.decoder]
         # ]
-        checkpoint_strict: True
+        # checkpoint_strict: True
         convert_to_per_camera_depth: True   # Applied only at inference step
     networks:
         depth:
-            # recipe: networks/multicam_depth_net|panodepth_ddad_resnet_shared
-            recipe: networks/multicam_depth_net|panodepth_ddad_resnet
+            recipe: networks/multicam_depth_net|panodepth_ddad_resnet_shared
+            # recipe: networks/multicam_depth_net|panodepth_ddad_resnet
 
             decoder:
               file: decoders/PanoTransformerDecoder
@@ -93,36 +96,44 @@ evaluation:
         post_process: False
 optimizers:
     depth:
-        recipe: optimizers|adam_20_05
-        lr: 0.00005
-        scheduler:
-          step_size: 30
+        # recipe: optimizers|adam_20_05
+        # lr: 0.00005
+        # scheduler:
+        #   step_size: 30
 
-        # recipe: optimizers|adam_warmup_multistep
-        # # warmup_iters: 214   # = (10272 / (12 * 4)) * 1 steps = 1 epoch
-        # warmup_iters: 642   # = (10272 / (4 * 4)) * 1 steps = 1 epoch
-        # # max_iter: 22500 # 360000 / 16 (=batch_size * nGPUs)
-        # max_iter: 45000 # 360000 * 2 / 16 (=batch_size * nGPUs)
-        # # steps: [16500, 19500, 21000]
-        # steps: [33000, 39000, 42000]
+        recipe: optimizers|adam_warmup_multistep
+        # warmup_iters: 214   # = (10272 / (12 * 4)) * 1 steps = 1 epoch
+        warmup_iters: 642   # = (10272 / (4 * 4)) * 1 steps = 1 epoch
+        # max_iter: 22500 # 360000 / 16 (=batch_size * nGPUs)
+        max_iter: 45000 # 360000 * 2 / 16 (=batch_size * nGPUs)
+        # steps: [16500, 19500, 21000]
+        steps: [33000, 39000, 42000]
 
 datasets:
     train:
         # recipe: datasets/ddad|train_selfsup_panodepth
         # path: [/data/datasets/DDAD/ddad_train_val/ddad_filtered.json]
         recipe: datasets/ddad_tiny|train_selfsup_panodepth
-        labels: [depth, pose]
+        # pano_cam_config:
+        #     recipe: cameras/pano_cam|panocam3
+        labels: [depth, pose, rays]
         repeat: [1]
         dataloader:
           # batch_size: 4
-          batch_size: 1
-          num_workers: 8   # If pin_memory is True, requires ~59GB RAM per 8 workers
+          batch_size: 2
+          num_workers: 16   # If pin_memory is True, requires ~59GB RAM per 8 workers
           # batch_size: 2
           # num_workers: 12   # If pin_memory is True, requires ~59GB RAM per 8 workers
     validation:
-        recipe: datasets/ddad|validation_panodepth
+        # recipe: datasets/ddad|validation_panodepth
+        recipe: datasets/ddad_tiny|validation_panodepth
+        # pano_cam_config:
+        #     recipe: cameras/pano_cam|panocam3
         # recipe: datasets/ddad_tiny|validation_panodepth
-        labels: [depth, pose]
+        labels: [depth, pose, rays]
+        # augmentation:
+        #   # HACK(soonminh): This is to resize rays
+        #   resize_supervision: True
         dataloader:
           batch_size: 1
           num_workers: 8

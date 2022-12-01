@@ -22,15 +22,15 @@ class PanoCrossViewTransformer(nn.Module):
         # self.out_size = out_size
         for i in range(iter_num):
             # TODO(soonminh): Replace this self-attention transformer to CrossViewMultiHeadAttention (output shape is not same as input)
-            self.self_block.append(Self_Block(input_channel, out_size_downsampled, num_heads=8))
+            self.self_block.append(Self_Block(input_channel, num_heads=8))
         self.decoder = nn.ModuleList(list(self.self_block))
 
-        # self.postional_embed = PositionEmbeddingSine(num_pos_feats=self.embed_dim)
-        self.postional_embed_key = PositionEmbeddingSine(num_pos_feats=self.embed_dim)
+        # # self.postional_embed = PositionEmbeddingSine(num_pos_feats=self.embed_dim)
+        # self.postional_embed_key = PositionEmbeddingSine(num_pos_feats=self.embed_dim)
 
-        # TODO(soonminh): Replace this to PolarPositionalEmbedding
-        postional_embed_query = self.init_query_pos_embedding(out_size_downsampled, num_pos_feats=input_channel)
-        self.register_buffer('postional_embed_query', postional_embed_query)
+        # # TODO(soonminh): Replace this to PolarPositionalEmbedding
+        # postional_embed_query = self.init_query_pos_embedding(out_size_downsampled, num_pos_feats=input_channel)
+        # self.register_buffer('postional_embed_query', postional_embed_query)
 
         self.downsample_ratio = downsample_ratio
         self.sep_conv = SeparableConv2d(in_channels=self.embed_dim,out_channels=self.embed_dim,stride=downsample_ratio)
@@ -59,52 +59,59 @@ class PanoCrossViewTransformer(nn.Module):
             kernel_size=1
             dilation = 1
             output_padding = 0
-        self.sep_deconv = SeparableDeConv2d(in_channels=self.embed_dim,out_channels=self.embed_dim,stride=downsample_ratio, kernel_size = kernel_size,
-            dilation =dilation, output_padding=output_padding)
+        # self.sep_deconv = SeparableDeConv2d(in_channels=self.embed_dim,out_channels=self.embed_dim,stride=downsample_ratio, kernel_size = kernel_size,
+        #     dilation =dilation, output_padding=output_padding)
 
-    def init_query_pos_embedding(self, shape, num_pos_feats=64, temperature=10000, normalize=False, scale=None):
-        if scale is None:
-            scale = 2 * math.pi
+    # def init_query_pos_embedding(self, shape, num_pos_feats=64, temperature=10000, normalize=False, scale=None):
+    #     if scale is None:
+    #         scale = 2 * math.pi
 
-        mask = torch.zeros([1, 1, *shape]).bool()
-        not_mask = ~mask
-        y_embed = not_mask.cumsum(2, dtype=torch.float32) / shape[0]
-        x_embed = not_mask.cumsum(3, dtype=torch.float32) / shape[1]
-        # if normalize:
-        #     eps = 1e-6
-        #     y_embed = y_embed / (y_embed[:, -1:, :] + eps) * scale
-        #     x_embed = x_embed / (x_embed[:, :, -1:] + eps) * scale
-        # dim_t = torch.arange(num_pos_feats, dtype=torch.float32)
-        # # dim_t = self.temperature ** (2 * (dim_t // 2) / float(self.num_pos_feats))
-        # # dim_t = self.temperature ** torch.div(2 * (dim_t // 2), self.num_pos_feats, rounding_mode='floor')
-        # dim_t = temperature ** torch.div(2 * torch.div(dim_t, 2), num_pos_feats, rounding_mode='floor')
-        # pos_x = x_embed[:, :, :, None] / dim_t
-        # pos_y = y_embed[:, :, :, None] / dim_t
-        pos_x = x_embed
-        pos_y = y_embed
-        pos = torch.cat((pos_y, pos_x), dim=1).permute(0, 2, 3, 1)
+    #     mask = torch.zeros([1, 1, *shape]).bool()
+    #     not_mask = ~mask
+    #     y_embed = not_mask.cumsum(2, dtype=torch.float32) / shape[0]
+    #     x_embed = not_mask.cumsum(3, dtype=torch.float32) / shape[1]
+    #     # if normalize:
+    #     #     eps = 1e-6
+    #     #     y_embed = y_embed / (y_embed[:, -1:, :] + eps) * scale
+    #     #     x_embed = x_embed / (x_embed[:, :, -1:] + eps) * scale
+    #     # dim_t = torch.arange(num_pos_feats, dtype=torch.float32)
+    #     # # dim_t = self.temperature ** (2 * (dim_t // 2) / float(self.num_pos_feats))
+    #     # # dim_t = self.temperature ** torch.div(2 * (dim_t // 2), self.num_pos_feats, rounding_mode='floor')
+    #     # dim_t = temperature ** torch.div(2 * torch.div(dim_t, 2), num_pos_feats, rounding_mode='floor')
+    #     # pos_x = x_embed[:, :, :, None] / dim_t
+    #     # pos_y = y_embed[:, :, :, None] / dim_t
+    #     pos_x = x_embed
+    #     pos_y = y_embed
+    #     pos = torch.cat((pos_y, pos_x), dim=1).permute(0, 2, 3, 1)
 
-        # pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
-        # pos_y = torch.stack((pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
-        # pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
-        return pos
+    #     # pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
+    #     # pos_y = torch.stack((pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
+    #     # pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
+    #     return pos
 
     def forward(self, x, meta): # B, N, C, H, W
         B, N, C, H, W = x.shape
         x = self.sep_conv(x.view(-1,C,H,W)).view(B,N,C,H//self.downsample_ratio,W//self.downsample_ratio)
         Hy, Wy = self.out_size_downsampled
 
-        # TODO(soonminh): Camera-aware positional embedding in ego coordinate
-        import pdb; pdb.set_trace()
-
         # HACK(soonminh): 2-channel positional embedding of y
-        y_pos = self.postional_embed_query.unsqueeze(1).repeat(B,1,1,1,1).reshape(B, -1, 2)
+        with torch.no_grad():
+            y_pos = meta['camera_pano']['rays_embedding']
+            feat_scale = y_pos.shape[-1] // Wy
+            y_pos = F.interpolate(y_pos, scale_factor=1/feat_scale)
+            y_pos = y_pos.permute(0, 2, 3, 1).reshape(B, -1, 4)
+
+            x_pos = torch.stack([F.interpolate(v['rays_embedding'], scale_factor=1/feat_scale)
+                        for k, v in meta.items() if k.startswith('camera_') and 'pano' not in k], axis=1)
+            x_pos = x_pos.permute(0, 1, 3, 4, 2).reshape(B, -1, 4)
+
+        # y_pos = self.postional_embed_query.unsqueeze(1).repeat(B,1,1,1,1).reshape(B, -1, 2)
         for i in range(self.iter_num):
-            self.pos_embed = self.postional_embed_key(x[:,0,:,:,:]).unsqueeze(1).repeat(1,N,1,1,1) # B, N, C, H, W
+            # self.pos_embed = self.postional_embed_key(x[:,0,:,:,:]).unsqueeze(1).repeat(1,N,1,1,1) # B, N, C, H, W
 
             # reshape #
             x = x.permute(0,1,3,4,2).reshape(B,-1,C)
-            x_pos = self.pos_embed.permute(0,1,3,4,2).reshape(B,-1,C)
+            # x_pos = self.pos_embed.permute(0,1,3,4,2).reshape(B,-1,C)
 
             # x = self.self_block[i](x, x_pos, y_pos).reshape(B,N,C,H//self.downsample_ratio, W//self.downsample_ratio)
             x = self.self_block[i](x, x_pos, y_pos).permute(0, 2, 1).reshape(B, C, Hy, Wy)
@@ -114,7 +121,8 @@ class PanoCrossViewTransformer(nn.Module):
         # x = self.sep_deconv(x.view(-1, C, Hy//self.downsample_ratio, Wy//self.downsample_ratio))
         # x = x.view(B,N,C,H,W)
 
-        x = self.sep_deconv(x)
+        x = F.interpolate(x, scale_factor=self.downsample_ratio)
+        # x = self.sep_deconv(x)
         # x = x.view(B,N,C,H,W)
 
         return x
@@ -122,13 +130,13 @@ class PanoCrossViewTransformer(nn.Module):
 
 class Self_Block(nn.Module):
 
-    def __init__(self, dim, output_size, num_heads, mlp_ratio=4., qkv_bias=False, drop=0., attn_drop=0.,
+    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, drop=0., attn_drop=0.,
                  drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm):
         super().__init__()
         self.norm1 = norm_layer(dim)
-        assert len(output_size) == 2
-        odim = output_size[0] * output_size[1]
-        self.attn = Self_Attention(dim, odim, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=drop)
+        # assert len(output_size) == 2
+        # odim = output_size[0] * output_size[1]
+        self.attn = Self_Attention(dim, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=drop)
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path = timm.models.layers.DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
@@ -142,7 +150,7 @@ class Self_Block(nn.Module):
         return y
 
 class Self_Attention(nn.Module):
-    def __init__(self, dim, output_dim, num_heads=8, qkv_bias=False, attn_drop=0., proj_drop=0.):
+    def __init__(self, dim, num_heads=8, qkv_bias=False, attn_drop=0., proj_drop=0.):
         super().__init__()
         assert dim % num_heads == 0, 'dim should be divisible by num_heads'
         self.num_heads = num_heads
@@ -150,8 +158,9 @@ class Self_Attention(nn.Module):
         self.scale = head_dim ** -0.5
 
         # self.q_linear = nn.Linear(dim, dim, bias=qkv_bias)
-        self.q_linear = nn.Linear(2, dim, bias=qkv_bias)
-        self.k_linear = nn.Linear(dim, dim, bias=qkv_bias)
+        self.q_linear = nn.Linear(4, dim, bias=qkv_bias)
+        # self.k_linear = nn.Linear(dim, dim, bias=qkv_bias)
+        self.k_linear = nn.Linear(4, dim, bias=qkv_bias)
         self.v_linear = nn.Linear(dim, dim, bias=qkv_bias)
         # self.q_linear = nn.Linear(dim, output_dim, bias=qkv_bias)
         # self.k_linear = nn.Linear(dim, dim, bias=qkv_bias)
@@ -167,7 +176,8 @@ class Self_Attention(nn.Module):
 
         # q_vector = k_vector = x + x_pos
         q_vector = y_pos
-        k_vector = x + x_pos
+        # k_vector = x + x_pos
+        k_vector = x_pos
         v_vector = x
 
         By, Ny, Cy = y_pos.shape
@@ -182,7 +192,12 @@ class Self_Attention(nn.Module):
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
+
+        # attn = q @ k.transpose(-2, -1)
+        # # attn = (q_vector @ k_vector.transpose(-2, -1))
+        # attn = torch.exp(2 * attn - 2)
+
+        # attn = self.attn_drop(attn)
 
         x = (attn @ v).transpose(1, 2).reshape(B, Ny, -1)
         x = self.proj(x)

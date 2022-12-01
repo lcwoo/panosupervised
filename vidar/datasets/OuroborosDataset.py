@@ -1,5 +1,5 @@
 # TRI-VIDAR - Copyright 2022 Toyota Research Institute.  All rights reserved.
-
+import copy
 import os
 import pickle
 
@@ -78,6 +78,28 @@ def generate_proj_maps(camera, Xw, Xl, shape):
     proj_angle = np.zeros((H, W), dtype=np.float32)
     proj_angle[uv[:, 1], uv[:, 0]] = yaw
     return proj_depth, proj_angle
+
+
+    # ### Calculate polar/azimuth angles in LiDAR coordinate
+    # # [LiDAR coordinate convention] https://en.wikipedia.org/wiki/Spherical_coordinate_system
+    # #   (X, Y, Z) = (N, W, U), where northing (N), westing(W), and upwardness (U)
+    # #   polar angle (theta): measured from a fixed zenith direction
+    # #   azimuth angle (phi): measured from negative X-axis (southing, S) on a reference (XY-) plane
+    # x = Xl[in_view][:, 0]
+    # y = Xl[in_view][:, 1]
+    # z = Xl[in_view][:, 2]
+    # r = np.linalg.norm(Xl[in_view], 2, axis=1)
+    # theta = np.arccos(z / (r + 1e-6))
+    # phi = np.arctan2(y, x + 1e-6)
+
+    # # Make phi positive angle
+    # phi = phi + np.pi
+    # # HACK(soonminh): Reverse yaw to make it clockwise and add pi to start from backward
+
+
+    # proj_angle = np.zeros((H, W), dtype=np.float32)
+    # proj_angle[uv[:, 1], uv[:, 0]] = theta
+    # return proj_depth, proj_angle
 
 
 class OuroborosDataset(BaseDataset):
@@ -180,7 +202,7 @@ class OuroborosDataset(BaseDataset):
 
         self.do_stack_samples = do_stack_samples
 
-    def depth_to_world_points(self, depth, datum_idx):
+    def depth_to_points(self, depth, datum_idx, coord='world'):
         """
         Unproject depth from a camera's perspective into a world-frame pointcloud
 
@@ -190,21 +212,28 @@ class OuroborosDataset(BaseDataset):
             Depth map to be lifted [H,W]
         datum_idx : Int
             Index of the camera
+        coord: String (world, ego, cam)
+            Coordinate of the output points
 
         Returns
         -------
         pointcloud : np.Array
             Lifted 3D pointcloud [Nx3]
         """
+        assert coord in ('world', 'ego', 'cam')
         # Access data
         intrinsics = self.get_current('intrinsics', datum_idx)
-        pose = self.get_current('pose', datum_idx)
+        pose = self.get_current('pose' if coord == 'world' else 'extrinsics', datum_idx)
+        pose = copy.deepcopy(pose)
         # Create pixel grid for 3D unprojection
         h, w = depth.shape[:2]
         uv = np.mgrid[:w, :h].transpose(2, 1, 0).reshape(-1, 2).astype(np.float32)
         # Unproject grid to 3D in the camera frame of reference
         pcl = Camera(K=intrinsics).unproject(uv) * depth.reshape(-1, 1)
-        # Return pointcloud in world frame of reference
+
+        # return pose * pcl if coord != 'cam' else pcl
+        if coord == 'cam':
+            pose.tvec[...] = 0.0
         return pose * pcl
 
     def create_camera(self, datum_idx, context=None):
@@ -226,6 +255,28 @@ class OuroborosDataset(BaseDataset):
         camera_pose = self.get_current_or_context('pose', datum_idx, context)
         camera_intrinsics = self.get_current_or_context('intrinsics', datum_idx, context)
         return Camera(K=camera_intrinsics, p_cw=camera_pose.inverse())
+
+    def create_camera_rays(self, camera_idx, distance=10.0, coord='ego'):
+        image_shape = self.get_current('rgb', camera_idx).size[::-1]
+        pcl = self.depth_to_points(distance * np.ones(image_shape), camera_idx, coord)
+
+        ### Calculate polar/azimuth angles in LiDAR coordinate
+        # [LiDAR coordinate convention] https://en.wikipedia.org/wiki/Spherical_coordinate_system
+        #   (X, Y, Z) = (N, W, U), where northing (N), westing(W), and upwardness (U)
+        #   polar angle (theta): measured from a fixed zenith direction
+        #   azimuth angle (phi): measured from negative X-axis (southing, S) on a reference (XY-) plane
+        r = np.linalg.norm(pcl, 2, axis=1)
+        x, y, z = pcl.T
+
+        # measured from Z-axis
+        theta = np.arccos(z / (r + 1e-6))
+        # measured from X-axis, counterclockwise
+        phi = np.arctan2(y, x + 1e-6)
+        # Make phi positive/clockwise angle
+        phi = -phi + np.pi
+
+        rays = np.stack([theta, phi], axis=0).reshape(2, *image_shape).astype(np.float32)
+        return rays
 
     def create_proj_maps(self, filename, camera_idx, depth_idx, depth_type,
                          world_points=None, context=None):
@@ -387,6 +438,20 @@ class OuroborosDataset(BaseDataset):
                 'rgb': self.get_current('rgb', i, as_dict=True),
                 'intrinsics': self.get_current('intrinsics', i, as_dict=True),
             })
+
+            # Rays
+            if self.with_rays:
+                rays = self.create_camera_rays(i)
+                embedding = np.stack([
+                    np.sin(rays[0]),
+                    np.cos(rays[0]),
+                    np.sin(rays[1]),
+                    np.cos(rays[1]),
+                ], axis=0)
+                sample.update({
+                    'rays': {0: rays},
+                    'rays_embedding': {0: embedding},
+                })
 
             # If masks are returned
             if self.masks_path is not None:

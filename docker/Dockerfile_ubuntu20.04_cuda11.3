@@ -48,22 +48,26 @@ RUN pip install \
     opencv-python==4.5.2.52 \
     flow_vis==0.1 \
     matplotlib==3.3.4 \
-    fire==0.4.0 \
+    fire \
     pyquaternion==0.9.9 \
     pandas==1.1.5 \
     xarray==0.16.2 \
     diskcache==5.2.1 \
     tenacity==7.0.0 \
-    pycocotools==2.0.2 \
     awscli==1.19.101 \
-    timm==0.5.4 \
     ref==0.0.2.2 \
     positional-encodings==4.0.0 \
     einops==0.3.2 \
-    wget \
-    ftfy \
-    regex \
-    tqdm
+    #wget==3.2 \
+    #scikit-image==0.19.3 \
+    #timm==0.6.11
+
+#    ftfy \
+#    regex \
+#    tqdm
+#pycocotools==2.0.2 \
+#timm==0.5.4 \
+
 
 # Install CamViz dependencies
 RUN pip install \

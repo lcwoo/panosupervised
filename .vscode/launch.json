@@ -1,0 +1,15 @@
+{
+    "configurations": [
+        {
+            "name": "Python: run",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/run.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "configs/papers/panosup/train_sup.yaml"
+            ],
+        }
+    ]
+}

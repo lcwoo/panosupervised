@@ -1,15 +1,16 @@
-USER_ID ?= ${shell id -u}
-GROUP_ID ?= ${shell id -g}
-USER_NAME ?= ${shell whoami}
+USER_ID ?= $(shell id -u)
+GROUP_ID ?= $(shell id -g)
+USER_NAME ?= $(shell whoami)
 
-PROJECT ?= panodepth-vidar
+PROJECT ?= panosupervised
 WORKSPACE ?= /home/${USER_NAME}/workspace/${PROJECT}
-DOCKER_IMAGE ?= ${PROJECT}:${USER_NAME}_20.04
+DOCKER_IMAGE ?= ${PROJECT}:${USER_NAME}_latest
 
 SHMSIZE ?= 444G
 WANDB_MODE ?= run
 DOCKER_OPTS := \
 			--rm -it \
+			--gpus all \
 			--shm-size=${SHMSIZE} \
 			-e AWS_DEFAULT_REGION \
 			-e AWS_ACCESS_KEY_ID \
@@ -34,6 +35,7 @@ DOCKER_OPTS := \
 			-v /tmp/.X11-unix:/tmp/.X11-unix \
 			-v /var/run/docker.sock:/var/run/docker.sock \
 			-v /run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro \
+			-v ${WORKSPACE}/../dgp:${WORKSPACE}/../dgp \
 			-v ${WORKSPACE}:${WORKSPACE} \
 			-w ${WORKSPACE} \
 			--privileged \
@@ -50,20 +52,20 @@ clean:
 
 docker-build:
 	docker build \
-		--build-arg TZ=America/New_York \
+		--build-arg TZ=Asia/Seoul \
 		--build-arg USER_ID=${USER_ID} \
 		--build-arg GROUP_ID=${GROUP_ID} \
 		--build-arg USER_NAME=${USER_NAME} \
-		-f docker/Dockerfile_ubuntu20.04_cuda11.3 \
+		-f docker/Dockerfile_latest \
 		-t ${DOCKER_IMAGE} .
 
 docker-interactive: docker-build
-	nvidia-docker run ${DOCKER_OPTS} --name ${PROJECT}_interactive ${DOCKER_IMAGE} /bin/bash
+	docker run ${DOCKER_OPTS} --name ${PROJECT}_interactive2 ${DOCKER_IMAGE} /bin/bash
 
 docker-jupyter: docker-build
-	nvidia-docker run ${DOCKER_OPTS} --name ${PROJECT}_jupyter ${DOCKER_IMAGE} \
+	docker run ${DOCKER_OPTS} --name ${PROJECT}_jupyter ${DOCKER_IMAGE} \
 		bash -c "jupyter lab --port=8989 --ip=0.0.0.0 --allow-root --no-browser --notebook-dir=${WORKSPACE}"
 		# bash -c "jupyter notebook --port=8989 --ip=0.0.0.0 --allow-root --no-browser --notebook-dir=${WORKSPACE}"
 
 docker-run: docker-build
-	nvidia-docker run ${DOCKER_OPTS} --name ${PROJECT} ${DOCKER_IMAGE} bash -c "${COMMAND}"
+	docker run ${DOCKER_OPTS} --name ${PROJECT} ${DOCKER_IMAGE} bash -c "${COMMAND}"

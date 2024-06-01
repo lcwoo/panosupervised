@@ -299,8 +299,8 @@ if __name__ == '__main__':
     height_pano, width_pano = (256, 2048)
     params = {
         'name': 'PanoCamOuroboros',
-        # 'path': '/data/datasets/DDAD_tiny/ddad_tiny_000071.json',
-        'path': '/data/datasets/DDAD/ddad_train_val/ddad.json',
+        'path': '/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json',
+        # 'path': '/data/datasets/DDAD/ddad_train_val/ddad.json',
         'split': 'train',
         'context': [-1, 1],
         'labels': ['depth', 'pose'],
@@ -346,7 +346,6 @@ if __name__ == '__main__':
     xyz_lidar = camera.reconstruct_depth_map(panodepth_tensor, to_world=False)
     xyz_lidar = xyz_lidar.view(3, -1).numpy()
     rgb_lidar = np.zeros_like(xyz_lidar).T
-    import pdb; pdb.set_trace()
     for camera in dataset.sensors:
         if not camera.startswith('camera'):
             continue
@@ -373,6 +372,7 @@ if __name__ == '__main__':
     rgb_lidar = (rgb_lidar * 255.0).astype(np.uint8)
 
     rgb_lidar_image = rgb_lidar.reshape(height_pano, width_pano, 3)
+    import ipdb; ipdb.set_trace()
     Image.fromarray(np.vstack([rgbs, panodepth_viz, rgb_lidar_image])).save(filename + '_frame.png')
     print('Save to {}'.format(filename + '_frame.png'))
 

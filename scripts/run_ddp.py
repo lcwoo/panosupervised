@@ -22,7 +22,6 @@ def train(cfg, **kwargs):
              nprocs=torch.cuda.device_count(),
              args=(cfg,), join=True)
 
-
 def main_worker(gpu, cfg):
 
     torch.cuda.set_device(gpu)

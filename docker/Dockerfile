@@ -123,11 +123,11 @@ ENV PYTHONPATH="/home/${USER_NAME}/workspace/dgp:$PYTHONPATH"
 #   e.g. modify code through remote ssh
 ################################################################################################
 # Create workspace folder
-# RUN mkdir -p /home/${USER_NAME}/workspace/experiments
-# RUN mkdir -p /home/${USER_NAME}/workspace/${PROJECT}
-# WORKDIR /home/${USER_NAME}/workspace/${PROJECT}
-# # Copy project to workspace folder
-# COPY --chown=${USER_NAME}:${USER_NAME} . /home/${USER_NAME}/workspace/${PROJECT}
+RUN mkdir -p /home/${USER_NAME}/workspace/experiments
+RUN mkdir -p /home/${USER_NAME}/workspace/${PROJECT}
+WORKDIR /home/${USER_NAME}/workspace/${PROJECT}
+# Copy project to workspace folder
+ COPY --chown=${USER_NAME}:${USER_NAME} . /home/${USER_NAME}/workspace/${PROJECT}
 
 # Set environment variables
 ENV PYTHONPATH="/home/${USER_NAME}/workspace/${PROJECT}:$PYTHONPATH"
@@ -137,5 +137,5 @@ ENV PYTHONPATH="/home/${USER_NAME}/workspace/${PROJECT}/externals/camviz:$PYTHON
 RUN echo "export PS1='(docker) \[\e[32m\](\D{%T})\[\e[0m\] \[\e[33m\]\u@\h:\w\[\e[0m\]\$ '" >> /home/$USER_NAME/.bashrc
 
 # Expose Port for jupyter (8888)
-EXPOSE 8888
+EXPOSE 8989
 RUN pip install jupyter

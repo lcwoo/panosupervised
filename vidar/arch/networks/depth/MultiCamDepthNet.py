@@ -130,15 +130,15 @@ class MultiCamDepthNet(BaseNet, ABC):
         # TODO(soonminh): check the ability of decoder to learn depth prediction
         #                   from dynamic multi-camera configuration
         #                   (e.g. from multiple datasets simultaneously)
-        # decoder_required_keys = ('intrinsics', 'pose_to_pano')
-        decoder_required_keys = ('rays_embedding',)
+        decoder_required_keys = ['intrinsics', 'pose_to_pano']
+        # decoder_required_keys = ('rays_embedding',)
         meta_info = {}
         for cam, sample in batch.items():
             if not cam.startswith('camera'):
                 continue
-            meta_info[cam] = {k: sample[k] for k in decoder_required_keys}
-            # meta_info[cam] = {k: sample[k] if 'pano' not in cam else sample[k]
-            #                     for k in decoder_required_keys if k in sample}
+            # meta_info[cam] = {k: sample[k] for k in decoder_required_keys}
+            meta_info[cam] = {k: sample[k] if 'pano' not in cam else sample[k]
+                                for k in decoder_required_keys if k in sample}
 
         log_images = {}
         if 'encoders' in self.networks:

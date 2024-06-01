@@ -175,6 +175,7 @@ class OuroborosDataset(BaseDataset):
         if self.with_radar:
             self.sensors.append('radar')
         self.radar_idx = len(self.sensors) - 1
+ 
 
         # Choose which dataset to use
         if not self.virtual:
@@ -457,7 +458,7 @@ class OuroborosDataset(BaseDataset):
             if self.masks_path is not None:
                 sample.update({
                     'mask': read_image(os.path.join(
-                        self.masks_path, 'camera_%02d.png' % self.cameras[i]))
+                        '/home/chungwoo/workspace/panodepth-vidar/data/masks/ddad', '%02d.png' % self.cameras[i]))
                 })
 
             # If depth is returned

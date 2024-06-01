@@ -38,3 +38,9 @@ cross_entropy:
     gamma: 0.5
     method: cross_entropy
     mask_sparse: True
+
+supervised_depth_loss:
+    file: SupervisedDepthLoss
+    gamma: 0.5
+    method: superviseddepthloss
+    mask_sparse: True

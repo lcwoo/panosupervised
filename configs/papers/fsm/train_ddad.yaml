@@ -1,6 +1,6 @@
 wrapper:
     recipe: wrapper|default
-    max_epochs: 20
+    max_epochs: 10
 arch:
     model:
         file: depth/FSMModel

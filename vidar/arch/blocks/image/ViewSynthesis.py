@@ -95,7 +95,6 @@ class ViewSynthesis(nn.Module, ABC):
 
     def forward(self, rgbs, depths=None, cams=None,
                 optical_flow=None, return_masks=False, tgt=0):
-
         context = [key for key in rgbs.keys() if key != tgt]
         num_scales = self.get_num_scales(depths, optical_flow)
 

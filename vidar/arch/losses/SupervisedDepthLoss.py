@@ -220,9 +220,15 @@ class SupervisedDepthLoss(BaseLoss, ABC):
             Supervised depth loss [1]
         """
         # Interpolations
-        pred = self.interp_nearest(pred, gt)
-        mask = self.interp_nearest(mask, gt)
-        soft_mask = self.interp_bilinear(soft_mask, gt)
+        
+        device = 'cuda:0'
+        
+        pred = pred.to(device)
+        gt = gt.to(device)
+        if mask is not None:
+            mask = mask.to(device)
+        if soft_mask is not None:
+            soft_mask = soft_mask.to(device)
 
         # Flatten tensors
         pred, gt, mask, soft_mask = self.flatten(pred, gt, mask, soft_mask)
@@ -233,7 +239,7 @@ class SupervisedDepthLoss(BaseLoss, ABC):
 
         # Calculate loss
         return self.criterion(pred[mask], gt[mask],
-                              soft_mask=soft_mask[mask] if soft_mask is not None else None)
+                              soft_mask=soft_mask[mask] if soft_mask is not None else None).to(device)
 
     def forward(self, pred, gt, mask=None, soft_mask=None):
         """

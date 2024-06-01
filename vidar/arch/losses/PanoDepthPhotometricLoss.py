@@ -358,8 +358,9 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
 
                 if self.automask_loss:
                     ctx_type_key = ctx_type
-                    if 'rgb' in ctx_type_key:
-                        ctx_type_key = 'raw_rgb' if self.training else 'rgb'
+                    # if 'rgb' in ctx_type_key:
+                        # ctx_type_key = 'raw_rgb' if self.training else 'rgb'
+                        # print(context_sources[cam_tgt].keys())
                     context_tgt_all = [raw_rgb for t, raw_rgb in context_sources[cam_tgt][ctx_type_key].items() if t != context_idx_tgt]
                     for context_tgt_automask in context_tgt_all:
                         contexts = match_scales(context_tgt_automask, depths_tgt, self.n, align_corners=self.align_corners)

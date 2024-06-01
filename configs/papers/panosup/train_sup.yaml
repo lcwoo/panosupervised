@@ -81,11 +81,11 @@ datasets:
         dataloader:
           batch_size: 2
           num_workers: 2
-# wandb:
-#     recipe: wandb|default
-#     project: panodepth
-#     tags: ['batch_12', 'train_on_filtered_DDAD', 'depth_hypothesis', 'positional_encoding_16', 'mobilenet_encoders']
-#     num_validation_logs: 10
+wandb:
+    recipe: wandb|default
+    project: panodepth
+    tags: ['batch_12', 'train_on_filtered_DDAD', 'depth_hypothesis', 'positional_encoding_16', 'mobilenet_encoders']
+    num_validation_logs: 10
 # checkpoint:
 #     recipe: checkpoint|default
 # save:

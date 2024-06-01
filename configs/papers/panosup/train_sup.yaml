@@ -22,10 +22,10 @@ wrapper:
     flip_lr_prob: 0.0
     validate_flipped: False
     validate_first: False
-    max_epochs: 20
+    max_epochs: 30
 arch:
     model:
-        file: depth/PanoSupervsiedModel
+        file: depth/PanoSupervisedModel
     networks:
         depth:
             recipe: networks/multicam_depth_net|panodepth_ddad
@@ -44,7 +44,7 @@ arch:
               positional_encoding: 16
     losses:
         supervised:
-            recipe: losses/supervised_depth|l1log
+            recipe: losses/supervised_depth|rmse
             automask_loss: True
             # Note: flow_downsampling can help mitigate holes in image depth issue,
             # but it makes the image depth blurry, so the smoothness calculated on image space
@@ -72,7 +72,7 @@ datasets:
         repeat: [1]
         dataloader:
           batch_size: 2
-          num_workers: 8   # If pin_memory is True, requires ~59GB RAM per 8 workers
+          num_workers: 2  # If pin_memory is True, requires ~59GB RAM per 8 workers
         #num_workers: 32   # If pin_memory is True, requires ~59GB RAM per 8 workers
     validation:
         # recipe: datasets/ddad|validation_panodepth
@@ -80,7 +80,7 @@ datasets:
         labels: [depth, pose]
         dataloader:
           batch_size: 2
-          num_workers: 8
+          num_workers: 2
 # wandb:
 #     recipe: wandb|default
 #     project: panodepth

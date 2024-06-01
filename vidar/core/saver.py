@@ -114,6 +114,7 @@ class Saver:
             'raw_intrinsics': raw_intrinsics,
             'intrinsics': intrinsics,
         }
+        batch = batch['camera_pano']
         img_shape = batch['rgb'][0].shape[-2:]
 
         for key in batch.keys():
@@ -197,10 +198,11 @@ class Saver:
                             write_image('%s_%s_%d_pred.png' % (filename, key, ctx),
                                         rgb)
 
-            if key.startswith('depth'):
+            if key.startswith('panodepth'):
                 data[key + '_pred'] = {k: v[i].cpu() for k, v in predictions[key].items()}
                 for ctx in predictions[key].keys():
-                    depth = predictions[key][ctx][0][i].cpu()
+                    depth = predictions[key][ctx][i]
+
                     if 'png' in self.depth:
                         if depth.dim() == 4:
                             for j in range(len(depth)):

@@ -104,6 +104,7 @@ class PanoCamSelfSupGTPoseModel(BaseModel):
 
         ### Compute depth
         log_images = {}
+        import ipdb; ipdb.set_trace()
 
         # 1. Compute inverse depth
         net_output = self.networks['depth'](filtered_batch, return_logs)

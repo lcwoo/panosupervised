@@ -458,7 +458,7 @@ class OuroborosDataset(BaseDataset):
             if self.masks_path is not None:
                 sample.update({
                     'mask': read_image(os.path.join(
-                        '/home/chungwoo/workspace/panodepth-vidar/data/masks/ddad', '%02d.png' % self.cameras[i]))
+                        '/home/lcw/workspace/panosupervised/data/masks/ddad', '%02d.png' % self.cameras[i]))
                 })
 
             # If depth is returned

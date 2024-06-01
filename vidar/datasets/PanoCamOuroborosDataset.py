@@ -329,6 +329,7 @@ if __name__ == '__main__':
     scene, *_, timestamp = data['camera_01']['filename'][0].split('/')
     filename = f'{scene}_{timestamp}'
     panodepth = data['camera_pano']['depth']
+    import ipdb; ipdb.set_trace()
     panodepth_viz = (viz_depth(panodepth[0][0], filter_zeros=False) * 255.0).astype(np.uint8)
     tensor_to_rgb_viz = lambda x: (x.permute(1, 2, 0) * 255.0).numpy().astype(np.uint8)
     rgbs = np.hstack(

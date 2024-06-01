@@ -116,48 +116,56 @@ def resize_npy_preserve(depth, shape, expand_dims=True):
 @iterate1
 def resize_torch_preserve(depth, shape):
     """
-    Resizes depth map preserving all valid depth pixels
+    Resizes a batch of depth maps preserving all valid depth pixels.
     Multiple downsampled points can be assigned to the same pixel.
 
     Parameters
     ----------
     depth : torch.Tensor
-        Depth map [B,1,h,w]
+        Depth map with shape [B, 1, h, w]
     shape : Tuple
-        Output shape (H,W)
+        Output shape (H, W)
 
     Returns
     -------
     depth : torch.Tensor
-        Resized depth map [B,1,H,W]
+        Resized depth map with shape [B, 1, H, W]
     """
-    if depth.dim() == 4:
-        return torch.stack([resize_torch_preserve(depth[i], shape)
-                            for i in range(depth.shape[0])], 0)
-    # If a single number is provided, use resize ratio
-    if not is_seq(shape):
-        shape = tuple(int(s * shape) for s in depth.shape)
-    # Store dimensions and reshapes to single column
-    c, h, w = depth.shape
-    # depth = np.squeeze(depth)
-    # h, w = depth.shape
-    x = depth.reshape(-1)
-    # Create coordinate grid
-    uv = np.mgrid[:h, :w].transpose(1, 2, 0).reshape(-1, 2)
-    # Filters valid points
-    idx = x > 0
-    crd, val = uv[idx], x[idx]
-    # Downsamples coordinates
-    crd[:, 0] = (crd[:, 0] * (shape[0] / h)).astype(np.int32)
-    crd[:, 1] = (crd[:, 1] * (shape[1] / w)).astype(np.int32)
-    # Filters points inside image
-    idx = (crd[:, 0] < shape[0]) & (crd[:, 1] < shape[1])
-    crd, val = crd[idx], val[idx]
-    # Creates downsampled depth image and assigns points
-    depth = torch.zeros(shape, device=depth.device, dtype=depth.dtype)
-    depth[crd[:, 0], crd[:, 1]] = val
-    # Return resized depth map
-    return depth.unsqueeze(0)
+    # Batch processing, assuming depth is always [B, 1, h, w]
+    resized_depths = []
+    for i in range(depth.size(0)):
+        single_depth = depth[i, 0]  # Work with the raw 2D depth map
+        
+        # Create a flattened array of depth values
+        x = single_depth.reshape(-1)
+        
+        # Create a coordinate grid
+        h, w = single_depth.shape
+        uv = torch.stack(torch.meshgrid(torch.arange(h), torch.arange(w), indexing='ij'), dim=-1).view(-1, 2).to(depth.device)
+        
+        # Filter valid points
+        idx = x > 0
+        crd, val = uv[idx], x[idx]
+        
+        # Downsample coordinates based on the new shape
+        crd[:, 0] = (crd[:, 0] * (shape[0] / h)).long()
+        crd[:, 1] = (crd[:, 1] * (shape[1] / w)).long()
+        
+        # Filter out-of-bound points
+        idx = (crd[:, 0] < shape[0]) & (crd[:, 1] < shape[1])
+        crd, val = crd[idx], val[idx]
+        
+        # Create a new depth map for this sample
+        new_depth = torch.zeros(shape, device=depth.device, dtype=depth.dtype)
+        new_depth[crd[:, 0], crd[:, 1]] = val
+        
+        # Append the processed depth map to the list, adding channel dimension
+        resized_depths.append(new_depth.unsqueeze(0))
+        
+    depth_all = torch.stack(resized_depths, dim=0)
+        
+    # Stack all processed depth maps to match the input batch format
+    return depth_all
 
 
 @iterate1

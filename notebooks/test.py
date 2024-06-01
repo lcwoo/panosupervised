@@ -1,0 +1,1 @@
+from ..vidar.arch.models.depth.PanoSupervisedModel import PanoSupervisedModel

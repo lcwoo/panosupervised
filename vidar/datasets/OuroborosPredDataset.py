@@ -29,7 +29,7 @@ class OuroborosPredDataset(OuroborosDataset):
             for c in range(self.num_cameras):
                 scene, _, camera, ts = self.get_filename(idx, c, context).split('/')
                 pred_depth_viz_np = np.array(Image.open(
-                    os.path.join(self.save_path, scene, camera, '{}_depth_{}_pred_viz.png'.format(ts, 0))
+                    os.path.join(self._path, scene, camera, '{}_depth_{}_pred_viz.png'.format(ts, 0))
                 ))
                 pred_depth_viz_np = cv2.resize(pred_depth_viz_np, raw_shape, cv2.INTER_CUBIC)
                 pred_depth_viz.append(pred_depth_viz_np)

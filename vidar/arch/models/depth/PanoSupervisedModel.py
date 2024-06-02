@@ -110,7 +110,7 @@ class PanoSupervisedModel(BaseModel):
             return output_dict
         
         losses = self.compute_losses(pred_panodepth_lastlayer, gt_panodepth)
-        return {'loss': losses['loss'], 'metrics': losses['metrics'], 'predictions': {'depth': {0: pred_panodepth}}}
+        return {'loss': losses['loss'], 'metrics': losses['metrics'], 'predictions': {'depth': {0: pred_panodepth},'gt_panodepth': {"gt_panodepth":{0: gt_panodepth}}}}
 
     def compute_losses(self, depths, gt_depths):
         """Compute supervised and smoothness losses for depth estimation."""

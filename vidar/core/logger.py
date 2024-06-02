@@ -157,6 +157,7 @@ class WandbLogger:
         """
         for key, image in output.pop('log_images', {}).items():
             self._metrics.update(prep_image(key, prefix, image))
+        import ipdb; ipdb.set_trace()    
 
         for data, suffix in zip([batch, output['predictions']], ['-gt', '-pred']):
             for key in data.keys():
@@ -275,9 +276,11 @@ def log_rgb(key, prefix, batch, i=0, only_first=None):
 def log_depth(key, prefix, batch, i=0, only_first=None):
     """Log depth map"""
     depth = batch[key] if is_dict(batch) else batch
+
     if is_seq(depth) or is_dict(depth):
         return log_sequence(key, prefix, depth, i, only_first, log_depth)
-    return prep_image(key, prefix, viz_depth(depth[i], filter_zeros=True))
+    
+    return prep_image(key, prefix, viz_depth(depth, filter_zeros=True))
 
 
 def log_inv_depth(key, prefix, batch, i=0, only_first=None):

@@ -156,10 +156,9 @@ class WandbLogger:
             Dictionary with ontology information
         """
         for key, image in output.pop('log_images', {}).items():
-            self._metrics.update(prep_image(key, prefix, image))
-        import ipdb; ipdb.set_trace()    
+            self._metrics.update(prep_image(key, prefix, image))    
 
-        for data, suffix in zip([batch, output['predictions']], ['-gt', '-pred']):
+        for data, suffix in zip([batch, output['predictions'],output['gt_panodepth']], ['-gt', '-pred']):
             for key in data.keys():
                 if key.startswith('rgb'):
                     self._metrics.update(log_rgb(
@@ -167,12 +166,12 @@ class WandbLogger:
                 elif key.startswith('depth'):
                     self._metrics.update(log_depth(
                         key, prefix + suffix, data, only_first=self.only_first))
-                elif key.startswith('camera_pano'):
-                    self._metrics.update(log_depth(
-                        key, prefix + suffix, data, only_first=self.only_first))    
                 elif key.startswith('panodepth'):
                     self._metrics.update(log_depth(
-                        key, prefix + suffix, data, only_first=self.only_first))    
+                        key, prefix + suffix, data, only_first=self.only_first))
+                elif key.startswith('gt_panodepth'):
+                    self._metrics.update(log_depth(
+                        key, prefix + suffix, data, only_first=self.only_first))         
                 elif key.startswith('inv_depth'):
                     self._metrics.update(log_inv_depth(
                         key, prefix + suffix, data, only_first=self.only_first))

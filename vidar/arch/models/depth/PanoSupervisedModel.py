@@ -97,8 +97,15 @@ class PanoSupervisedModel(BaseModel):
         gt_panodepth = batch['camera_pano']['depth'][0]
         pred_panodepth_lastlayer = resize_torch_preserve(pred_panodepth[0], (256, 2048))
         output_dict = {'predictions': {'panodepth': {0: pred_panodepth}}}
-        
-        
+        output_dict = {
+            'predictions': {
+                'panodepth': {0: pred_panodepth},
+            },
+            'gt_panodepth': {
+                'gt_panodepth': {0: gt_panodepth}
+            }
+        }
+                
         if not self.training:
             return output_dict
         

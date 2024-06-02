@@ -167,6 +167,12 @@ class WandbLogger:
                 elif key.startswith('depth'):
                     self._metrics.update(log_depth(
                         key, prefix + suffix, data, only_first=self.only_first))
+                elif key.startswith('camera_pano'):
+                    self._metrics.update(log_depth(
+                        key, prefix + suffix, data, only_first=self.only_first))    
+                elif key.startswith('panodepth'):
+                    self._metrics.update(log_depth(
+                        key, prefix + suffix, data, only_first=self.only_first))    
                 elif key.startswith('inv_depth'):
                     self._metrics.update(log_inv_depth(
                         key, prefix + suffix, data, only_first=self.only_first))

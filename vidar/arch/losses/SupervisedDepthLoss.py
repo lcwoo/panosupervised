@@ -137,7 +137,8 @@ def get_criterion(method):
     elif method == 'silog':
         return SilogLoss()
     elif method == 'abs_rel':
-        return lambda x, y: torch.abs(x - y) / x
+        epsilon = 1e-8
+        return lambda x, y: torch.abs(x+epsilon - y) / (x+epsilon)
     elif method == 'root_abs_rel':
         return RootAbsRelLoss()
     elif method == 'square_abs_rel':

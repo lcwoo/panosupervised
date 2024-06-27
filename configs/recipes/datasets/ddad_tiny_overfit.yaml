@@ -1,0 +1,170 @@
+train_selfsup_front:
+    name: [Ouroboros]
+    path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
+    split: [train]
+    augmentation:
+        jittering: [0.2, 0.2, 0.2, 0.05]
+        resize: [384, 640]
+    dataloader:
+        batch_size: 8
+        pin_memory: True
+        num_workers: 16
+    context: [-1,1]
+    labels: [depth]
+    cameras: [[1]]
+    depth_type: [lidar]
+    repeat: [100]
+validation_front:
+    name: [Ouroboros]
+    path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
+    split: [train]
+    augmentation:
+        resize: [384, 640]
+    dataloader:
+        batch_size: 1
+        pin_memory: True
+        num_workers: 16
+    context: []
+    labels: [depth]
+    cameras: [[1]]
+    depth_type: [lidar]
+
+### More cameras
+train_selfsup_front_right:
+    name: [Ouroboros]
+    path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
+    split: [train]
+    augmentation:
+        jittering: [0.2, 0.2, 0.2, 0.05]
+        resize: [384, 640]
+    dataloader:
+        batch_size: 8
+        pin_memory: True
+        num_workers: 16
+    context: [-1,1]
+    labels: [depth]
+    cameras: [[6]]
+    depth_type: [lidar]
+    repeat: [100]
+
+train_selfsup_front_left:
+    name: [Ouroboros]
+    path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
+    split: [train]
+    augmentation:
+        jittering: [0.2, 0.2, 0.2, 0.05]
+        resize: [384, 640]
+    dataloader:
+        batch_size: 8
+        pin_memory: True
+        num_workers: 16
+    context: [-1,1]
+    labels: [depth]
+    cameras: [[5]]
+    depth_type: [lidar]
+    repeat: [100]
+
+train_selfsup_back_right:
+    name: [Ouroboros]
+    path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
+    split: [train]
+    augmentation:
+        jittering: [0.2, 0.2, 0.2, 0.05]
+        resize: [384, 640]
+    dataloader:
+        batch_size: 8
+        pin_memory: True
+        num_workers: 16
+    context: [-1,1]
+    labels: [depth]
+    cameras: [[8]]
+    depth_type: [lidar]
+    repeat: [100]
+
+train_selfsup_back_left:
+    name: [Ouroboros]
+    path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
+    split: [train]
+    augmentation:
+        jittering: [0.2, 0.2, 0.2, 0.05]
+        resize: [384, 640]
+    dataloader:
+        batch_size: 8
+        pin_memory: True
+        num_workers: 16
+    context: [-1,1]
+    labels: [depth]
+    cameras: [[7]]
+    depth_type: [lidar]
+    repeat: [100]
+
+train_selfsup_back:
+    name: [Ouroboros]
+    path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
+    split: [train]
+    augmentation:
+        jittering: [0.2, 0.2, 0.2, 0.05]
+        resize: [384, 640]
+    dataloader:
+        batch_size: 8
+        pin_memory: True
+        num_workers: 16
+    context: [-1,1]
+    labels: [depth]
+    cameras: [[9]]
+    depth_type: [lidar]
+    repeat: [100]
+
+### For multicam models
+validation_6cams:
+    name: [Ouroboros]
+    path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
+    split: [val]
+    augmentation:
+        resize: [384, 640]
+    dataloader:
+        batch_size: 1
+        pin_memory: True
+        num_workers: 16
+    context: []
+    labels: [depth]
+    cameras: [[1, 5, 6, 7, 8, 9]]
+    depth_type: [lidar]
+
+train_selfsup_panodepth:
+    pano_cam_config:
+        recipe: cameras/pano_cam|panocam3
+    name: [PanoCamOuroboros]
+    masks: ['/data/datasets/DDAD/mask']
+    path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
+    split: [train]
+    augmentation:
+        jittering: [0.2, 0.2, 0.2, 0.05]
+        resize: [384, 640]
+    dataloader:
+        batch_size: 1
+        pin_memory: True
+        num_workers: 16
+    context: [-1,1]
+    labels: [depth]
+    cameras: [[1, 5, 6, 7, 8, 9]]
+    depth_type: [lidar]
+    repeat: [1]
+
+validation_panodepth:
+    pano_cam_config:
+        recipe: cameras/pano_cam|panocam3
+    name: [PanoCamOuroboros]
+    masks: ['/data/datasets/DDAD/mask']
+    path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
+    split: [val]
+    augmentation:
+        resize: [384, 640]
+    dataloader:
+        batch_size: 1
+        pin_memory: True
+        num_workers: 16
+    context: [-1,1]
+    labels: [depth]
+    cameras: [[1, 5, 6, 7, 8, 9]]
+    depth_type: [lidar]

@@ -50,7 +50,32 @@ class PositionalEncoding2D(nn.Module):
         self.cache = emb.repeat(tensor.shape[0], 1, 1, 1)
         return self.cache
 
+# Self-attention module definition
+class SelfAttention(nn.Module):
+    def __init__(self, channels):
+        super(SelfAttention, self).__init__()
+        self.query = nn.Conv2d(channels, channels // 8, 1)
+        self.key = nn.Conv2d(channels, channels // 8, 1)
+        self.value = nn.Conv2d(channels, channels, 1)
+        self.softmax = nn.Softmax(dim=-1)
 
+    def forward(self, x):
+        batch, channels, height, width = x.size()
+        query = self.query(x).view(batch, -1, width * height).permute(0, 2, 1)
+        key = self.key(x).view(batch, -1, width * height)
+        value = self.value(x).view(batch, -1, width * height)
+
+        # Compute the attention scores and apply softmax
+        attention_scores = torch.bmm(query, key.transpose(1, 2))
+        attention = self.softmax(attention_scores)
+
+        # Apply the attention weights to the value vectors
+        weighted_values = torch.bmm(value, attention.transpose(1, 2))
+        weighted_values = weighted_values.view(batch, channels, height, width)
+
+        # Add the input and the weighted values (residual connection)
+        return x + weighted_values
+    
 class MultiDepthSweepFusion(nn.Module):
     """
     Cylindrical depth sweeping based fusion module using multiple depth hypotheses
@@ -77,11 +102,17 @@ class MultiDepthSweepFusion(nn.Module):
         _, in_shape, _, out_shape = list(scale_and_shapes.values())[0]
         num_cameras = len(scale_and_shapes.keys())
         num_depths = len(depth_hypotheses)
+        
+        self.self_attention = SelfAttention(in_shape[0] * num_cameras * num_depths)
 
         self.prepare_att = None
         if view_attention:
             self.prepare_att = nn.Conv2d(in_shape[0] * num_cameras * num_depths, num_cameras * num_depths, kernel_size=3, padding=1)
-        self.conv = BasicBlock(in_shape[0], out_shape[0], downsample=None)
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_shape[0], out_shape[0], kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm2d(out_shape[0])
+        )
 
         self.get_pos_enc = None
         if positional_encoding > 0:

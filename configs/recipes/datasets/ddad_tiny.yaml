@@ -131,7 +131,7 @@ validation_6cams:
     cameras: [[1, 5, 6, 7, 8, 9]]
     depth_type: [lidar]
 
-train_selfsup_panodepth:
+train_sup_panodepth:
     pano_cam_config:
         recipe: cameras/pano_cam|panocam3
     name: [PanoCamOuroboros]
@@ -165,6 +165,38 @@ validation_panodepth:
         pin_memory: True
         num_workers: 16
     context: [-1,1]
+    labels: [depth]
+    cameras: [[1, 5, 6, 7, 8, 9]]
+    depth_type: [lidar]
+
+train_sup_6cams_fsm:
+    name: [Ouroboros]
+    path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
+    split: [train]
+    augmentation:
+        jittering: [0.2, 0.2, 0.2, 0.05]
+        resize: [384, 640]
+    dataloader:
+        batch_size: 4
+        pin_memory: True
+        num_workers: 8
+    context: [-1,1]
+    labels: [depth]
+    cameras: [[1, 5, 6, 7, 8, 9]]
+    depth_type: [lidar]
+    repeat: [100]
+
+validation_sup_6cams_fsm:
+    name: [Ouroboros]
+    path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
+    split: [val]
+    augmentation:
+        resize: [384, 640]
+    dataloader:
+        batch_size: 4
+        pin_memory: True
+        num_workers: 8
+    context: []
     labels: [depth]
     cameras: [[1, 5, 6, 7, 8, 9]]
     depth_type: [lidar]

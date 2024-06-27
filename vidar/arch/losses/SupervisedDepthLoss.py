@@ -259,7 +259,6 @@ class SupervisedDepthLoss(BaseLoss, ABC):
         """
         if self.inverse:
             pred, gt = depth2inv(pred), depth2inv(gt)
-
         scales = self.get_scales(pred)
         weights = self.get_weights(scales)
 
@@ -267,7 +266,7 @@ class SupervisedDepthLoss(BaseLoss, ABC):
 
         for i in range(scales):
             #NOTE 원래 pred_i, gt_i = pred[i], gt[i] if is_list(gt) else gt
-            pred_i, gt_i = pred, gt[i] if is_list(gt) else gt
+            pred_i, gt_i = pred[i], gt[i] if is_list(gt) else gt
             mask_i = get_mask_from_list(mask, i, return_ones=gt_i)
             soft_mask_i = get_mask_from_list(soft_mask, i)
 

@@ -38,7 +38,6 @@ class Saver:
                 self.ckpt = ckpt[0].split('/')[-2]
             else:
                 self.ckpt = os.path.splitext(os.path.basename(ckpt))[0]
-
         self.naming = cfg_has(cfg, 'naming', 'filename')
         assert self.naming in ['filename', 'splitname'], \
             'Invalid naming for saver: {}'.format(self.naming)
@@ -114,8 +113,9 @@ class Saver:
             'raw_intrinsics': raw_intrinsics,
             'intrinsics': intrinsics,
         }
+        
         batch = batch['camera_pano']
-        img_shape = batch['rgb'][0].shape[-2:]
+        img_shape = batch['depth'][0].size()[2:4]
 
         for key in batch.keys():
 
@@ -162,9 +162,10 @@ class Saver:
                         if depth.dim() == 4:
                             for j in range(len(depth)):
                                 # write_image('%s_%s(%d_%d)_gt_viz.png' % (filename, key, j, ctx),
+                                #HACK original code: resize_torch_preserve(depth[j], img_shape)
                                 filename = self.get_filename(path, batch, idx, i, j)
                                 write_image('%s_%s_%d_gt_viz.png' % (filename, key, ctx),
-                                            viz_depth(resize_torch_preserve(depth[j], img_shape), filter_zeros=True))
+                                            viz_depth(resize_torch_preserve(depth, img_shape), filter_zeros=True))
                         else:
                             # write_image('%s_%s(%d)_gt_viz.png' % (filename, key, ctx),
                             filename = self.get_filename(path, batch, idx, i, 0)
@@ -232,10 +233,12 @@ class Saver:
                             for j in range(len(depth)):
                                 # write_image('%s_%s(%d_%d)_pred_viz.png' % (filename, key, j, ctx),
                                 filename = self.get_filename(path, batch, idx, i, j)
+                                #HACK original code:resize_torch_preserve(depth[j], img_shape)
                                 write_image('%s_%s_%d_pred_viz.png' % (filename, key, ctx),
-                                            viz_depth(resize_torch_preserve(depth[j], img_shape)))
+                                            viz_depth(resize_torch_preserve(depth, img_shape)))
                         else:
                             # write_image('%s_%s(%d)_pred_viz.png' % (filename, key, ctx),
+                            #HACK original code:resize_torch_preserve(depth[], img_shape)
                             filename = self.get_filename(path, batch, idx, i, 0)
                             write_image('%s_%s_%d_pred_viz.png' % (filename, key, ctx),
                                         viz_depth(resize_torch_preserve(depth, img_shape)))

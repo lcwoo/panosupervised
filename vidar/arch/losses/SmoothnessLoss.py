@@ -37,8 +37,12 @@ class SmoothnessLoss(BaseLoss, ABC):
         loss : torch.Tensor
             Smoothness loss [1]
         """
+        if depth.ndim == 3:
+            depth = depth.unsqueeze(1)
+
         if self.normalize:
-            mean_depth = depth.mean(2, True).mean(3, True)
+            mean_depth = depth.mean(dim=3, keepdim=True)
+            mean_depth = mean_depth.mean(dim=2, keepdim=True)
             norm_depth = depth / (mean_depth + 1e-7)
         else:
             norm_depth = depth

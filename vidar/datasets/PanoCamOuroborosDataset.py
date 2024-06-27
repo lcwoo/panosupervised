@@ -322,14 +322,13 @@ if __name__ == '__main__':
     # Initialize dataset
     dataset = PanoCamOuroborosDataset(**params)
     print('# of frames: {}'.format(len(dataset)))
-
+    # '000071/{}/CAMERA_01/1568648972095306'
     # Get a sample
-    data = dataset[0]
+    data = dataset[83]
 
     scene, *_, timestamp = data['camera_01']['filename'][0].split('/')
-    filename = f'{scene}_{timestamp}'
+    filename = f'{scene}_{1568648972095306}'
     panodepth = data['camera_pano']['depth']
-    import ipdb; ipdb.set_trace()
     panodepth_viz = (viz_depth(panodepth[0][0], filter_zeros=False) * 255.0).astype(np.uint8)
     tensor_to_rgb_viz = lambda x: (x.permute(1, 2, 0) * 255.0).numpy().astype(np.uint8)
     rgbs = np.hstack(
@@ -373,7 +372,6 @@ if __name__ == '__main__':
     rgb_lidar = (rgb_lidar * 255.0).astype(np.uint8)
 
     rgb_lidar_image = rgb_lidar.reshape(height_pano, width_pano, 3)
-    import ipdb; ipdb.set_trace()
     Image.fromarray(np.vstack([rgbs, panodepth_viz, rgb_lidar_image])).save(filename + '_frame.png')
     print('Save to {}'.format(filename + '_frame.png'))
 

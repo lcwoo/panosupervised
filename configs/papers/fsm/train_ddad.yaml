@@ -10,8 +10,12 @@ arch:
         pose:
             recipe: networks/conv_pose_net|default
     losses:
-        reprojection:
-            recipe: losses/reprojection|fsm
+        supervised:
+            recipe: losses/supervised_depth|huber
+            automask_loss: True
+            flow_downsampling: False
+            upsample_depth: False
+            gamma: 1.0
         smoothness:
             recipe: losses/smoothness|default
 evaluation:
@@ -44,8 +48,8 @@ datasets:
 wandb:
     recipe: wandb|default
     project: vidar_baselines
-    tags: ['fsm']
-checkpoint:
-    recipe: checkpoint|default
+    tags: ['fsm_sup']
+# checkpoint:
+#     recipe: checkpoint|default
 # save:
 #     recipe: save|depth_splitname

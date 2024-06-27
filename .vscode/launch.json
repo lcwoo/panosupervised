@@ -8,7 +8,7 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
-                "configs/papers/panosup/train_sup.yaml"
+                "configs/papers/panosup/train_sup_res_net.yaml"
             ],
         }
     ]

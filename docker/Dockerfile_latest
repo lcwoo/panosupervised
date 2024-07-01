@@ -93,7 +93,7 @@ RUN apt-get update & apt-get install -y \
 #RUN pip install pytorch3d
 RUN pip install "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.5"
 # Install CuPY
-#RUN pip install cupy
+RUN pip install cupy
 
 # Install extras (should be moved to top when stable)
 #RUN pip install lpips wget scikit-image pyhocon dotmap path sacremoses filelock huggingface_hub

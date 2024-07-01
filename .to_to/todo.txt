@@ -1,0 +1,14 @@
+6/30
+Modifying from NumPy to CuPy to reduce CPU usage
+
+7/1
+Modifying from NumPy to CuPy to reduce CPU usage
+make self attention for cylindrical features
+
+#TODO: ( ~ 24.07.05)
+
+*Modifying from NumPy to CuPy to reduce CPU usage
+
+**Reviewing the GT (ground truth) setting part
+
+***Identifying parts where self-attention can be modified

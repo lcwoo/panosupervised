@@ -6,6 +6,20 @@ from torchvision.models.resnet import BasicBlock
 
 from vidar.arch.networks.layers.panodepth.depth_sweeping import MultiDepthTransform
 
+def cylindrical_padding(x, padding_size):
+    """
+    Apply cylindrical padding to the input tensor.
+
+    Parameters:
+        x (torch.Tensor): The input tensor (B, C, H, W).
+        padding_size (int): The size of the padding.
+
+    Returns:
+        torch.Tensor: Padded tensor.
+    """
+    left = x[:, :, :, -padding_size:]  # Select last columns
+    right = x[:, :, :, :padding_size]  # Select first columns
+    return torch.cat([left, x, right], dim=3)  # Concatenate
 
 # https://github.com/tatp22/multidim-positional-encoding
 class PositionalEncoding2D(nn.Module):
@@ -64,9 +78,19 @@ class SelfAttention(nn.Module):
         query = self.query(x).view(batch, -1, width * height).permute(0, 2, 1)
         key = self.key(x).view(batch, -1, width * height)
         value = self.value(x).view(batch, -1, width * height)
+        # ipdb> query.size()
+        # torch.Size([2, 32768, 288])
+        # ipdb> key.size()
+        # torch.Size([2, 288, 32768])
+        # ipdb> value.size()
+        # torch.Size([2, 2304, 32768])
+        # ipdb> width
+        # 512
+        # ipdb> height
+        # 64
 
         # Compute the attention scores and apply softmax
-        attention_scores = torch.bmm(query, key.transpose(1, 2))
+        attention_scores = torch.bmm(query, key)
         attention = self.softmax(attention_scores)
 
         # Apply the attention weights to the value vectors
@@ -103,11 +127,13 @@ class MultiDepthSweepFusion(nn.Module):
         num_cameras = len(scale_and_shapes.keys())
         num_depths = len(depth_hypotheses)
         
-        self.self_attention = SelfAttention(in_shape[0] * num_cameras * num_depths)
+        
 
         self.prepare_att = None
+        
         if view_attention:
-            self.prepare_att = nn.Conv2d(in_shape[0] * num_cameras * num_depths, num_cameras * num_depths, kernel_size=3, padding=1)
+            self.prepare_att = self.self_attention = SelfAttention(in_shape[0] * num_cameras * num_depths)
+
         self.conv = nn.Sequential(
             nn.Conv2d(in_shape[0], out_shape[0], kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
@@ -118,7 +144,7 @@ class MultiDepthSweepFusion(nn.Module):
         if positional_encoding > 0:
             self.get_pos_enc = PositionalEncoding2D(positional_encoding)
 
-
+    
     def forward(self, feats, meta, return_logs=False):
         # 1. Cylinderical sweeping for all views (per-camera + per-depth)
         panofeats = []

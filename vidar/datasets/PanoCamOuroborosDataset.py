@@ -4,6 +4,7 @@ import torch
 
 from vidar.datasets.augmentations.resize import resize_npy_preserve
 from vidar.geometry.camera_pano import PanoCamera
+from vidar.geometry.camera import Camera
 from vidar.datasets.OuroborosDataset import load_from_file, save_to_file, generate_proj_maps
 from vidar.datasets.OuroborosDataset import OuroborosDataset
 from vidar.datasets.utils.misc import stack_sample
@@ -13,53 +14,39 @@ PANO_CAMERA_NAME = 'camera_pano'
 
 
 def generate_pano_proj_maps(camera, Xw, Xl):
-    """Render pointcloud on pano image.
-
-    Parameters
-    ----------
-    camera: PanoCamera
-        Camera object with appropriately set extrinsics wrt world.
-    Xw: np.Array
-        3D point cloud (x, y, z) in the world coordinate. [N,3]
-    Xl: np.Array
-        3D point cloud (x, y, z) in the lidar coordinate. [N,3]
-    Returns
-    -------
-    depth: np.Array
-        Rendered pano depth image
-    """
     # Project the points
     uv_tensor, rho_tensor = camera.project_points(Xw, normalize=False, return_z=True)
-    uv = uv_tensor[0].numpy().astype(int)
-    # Colorize the point cloud based on depth
-    rho = rho_tensor[0].numpy()
+    uv = uv_tensor[0].long()  # Convert to long for indexing
+    rho = rho_tensor[0]
 
     # Create an empty image to overlay
     H, W = camera.hw
-    proj_depth = np.zeros((H, W), dtype=np.float32)
-    in_view = np.logical_and.reduce([(uv >= 0).all(axis=1), uv[:, 0] < W, uv[:, 1] < H, rho > 0])
-    uv, rho = uv[in_view], rho[in_view]
+    proj_depth = torch.zeros((H, W), dtype=torch.float32)
+    
+    in_view = (uv >= 0).all(dim=1) & (uv[:, 0] < W) & (uv[:, 1] < H) & (rho > 0)
+    uv = uv[in_view]
+    rho = rho[in_view]
 
-    # TODO(sohwang): this is not enough, we need meshes and filter points by z-buffer.
     # Sort by distance to pick closest one if multiple LiDAR points are projected onto a single pixel
-    order = np.argsort(rho)[::-1]
+    order = torch.argsort(rho, descending=True)
     uv = uv[order]
     rho = rho[order]
+    
+    # Direct indexing on tensors to fill the image
     proj_depth[uv[:, 1], uv[:, 0]] = rho
 
     # Calculate yaw angle in LiDAR coordinate
     xx = Xl[in_view][:, 0]
     yy = Xl[in_view][:, 1]
-    yaw = np.arctan2(yy, xx + 1e-6)
+    yaw = torch.atan2(yy, xx + 1e-6)
 
-    # HACK(soonminh): Reverse yaw to make it clockwise and add pi to start from backward
-    yaw = -yaw + np.pi
+    # Reverse yaw to make it clockwise and add pi to start from backward
+    yaw = -yaw + torch.pi
 
-    proj_angle = np.zeros((H, W), dtype=np.float32)
+    proj_angle = torch.zeros((H, W), dtype=torch.float32)
     proj_angle[uv[:, 1], uv[:, 0]] = yaw
 
     return proj_depth, proj_angle
-
 
 ########################################################################################################################
 #### DATASET
@@ -165,7 +152,68 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         theta, phi = np.meshgrid(theta, phi, indexing='ij')
         rays = np.stack([theta, phi], axis=0)
         return rays
+    
+    def create_pano_mask(self, sample, K, hw, Twc, depth_idx, depth_type):
+        """
+        Creates a panoramic mask by transforming and aggregating masks from multiple cameras.
 
+        Parameters
+        ----------
+        samples : dict
+            Dictionary containing sample data from multiple cameras.
+        K : np.Array
+            Intrinsic matrix of the panoramic camera.
+        hw : tuple
+            Height and width of the panoramic camera.
+        Twc : np.Array
+            Extrinsic matrix of the panoramic camera.
+
+        Returns
+        -------
+        pano_mask :
+            Aggregated panoramic mask.
+        """
+        pano_masks = []
+        camera_names = [k for k in sample.keys() if k.startswith('camera_0')]
+        K_pano = sample[PANO_CAMERA_NAME]['intrinsics'][0].float()
+
+        for cam_name in camera_names:
+            
+            pose_to_pano = sample[cam_name]['pose_to_pano'][0]
+            K = sample[cam_name]['intrinsics'][0]
+            mask_i = sample[cam_name]['mask']
+            _, height, width = mask_i.size()
+            
+            coords = torch.stack(torch.meshgrid(torch.arange(height), torch.arange(width), indexing='xy'), dim=2).float()
+
+            mask_values = mask_i.squeeze(0).unsqueeze(-1) # [1, 384, 640] -> [384, 640, 1]
+
+            coords = coords.transpose(0, 1)  # 이제 coords의 크기는 [640, 384, 2]가 됩니다.
+
+            # 최종 좌표 생성: (x, y, mask_value)
+            final_coords = torch.cat([coords, mask_values], dim=2)
+
+            
+            K_inv = torch.inverse(K.float())
+            camera_mask = torch.einsum('ij,klj->kli', K_inv, final_coords) 
+            # Create a mask for the camera
+            homogeneous_camera_mask = torch.cat([camera_mask, torch.ones(384, 640, 1)], dim=2)  # 마지막 차원에 1 추가
+            flat_homogeneous_camera_mask = homogeneous_camera_mask.reshape(-1, 4)
+            pano_coords = torch.mm(flat_homogeneous_camera_mask, pose_to_pano.transpose(0, 1))  #c 행렬 곱
+
+            # Camera to Image 플레인 투영
+            pano_coords = pano_coords[:, :3]
+            projected_coords = torch.mm(pano_coords, K_pano.transpose(0, 1))
+
+            pano_masks.append(projected_coords)
+
+        # Stack all masks
+        import ipdb; ipdb.set_trace()
+        pano_masks = torch.stack(pano_masks, dim=0)
+
+        return pano_mask
+
+    
     def create_pano_proj_maps(self, filename, K, hw, Twc, depth_idx, depth_type):
         """
         Creates the depth map for a camera by projecting LiDAR information.
@@ -201,16 +249,22 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
             pass
 
         # Get lidar information
-        lidar_extrinsics = self.get_current('extrinsics', depth_idx)
-        lidar_points = self.get_current('point_cloud', depth_idx)
-        world_points = (lidar_extrinsics * lidar_points).T
+        pose = self.get_current('extrinsics', depth_idx)
+        transformation_matrix = torch.tensor(pose.matrix, dtype=torch.float32)
 
+        lidar_points = self.get_current('point_cloud', depth_idx)
+        lidar_points_tensor = torch.tensor(lidar_points, dtype=torch.float32)
+        homogeneous_points = torch.cat((lidar_points_tensor, torch.ones((lidar_points_tensor.shape[0], 1), dtype=torch.float32)), dim=1)
+        world_points = torch.matmul(transformation_matrix, homogeneous_points.T).T[:, :3].unsqueeze(0).transpose(1, 2)
+        
         # Create camera
         camera = PanoCamera(K[None], hw, Twc=Twc[None])
-        world_points = torch.FloatTensor(world_points[None])
 
         # Generate depth maps
-        depth, angle = generate_pano_proj_maps(camera, world_points, lidar_points)
+        depth, angle = generate_pano_proj_maps(camera, world_points, lidar_points_tensor)
+        
+        depth = depth.numpy()
+        angle = angle.numpy()
 
         save_to_file(filename_depth, {'depth': depth, 'angle': angle})
         return depth, angle
@@ -269,11 +323,15 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
 
         for i in range(self.num_cameras):
             camera = self.get_current('datum_name', i).lower()
-            pose_to_pano = Twc @ torch.FloatTensor(samples[camera]['extrinsics'][0]).inverse()
+            pose_to_pano = Twc @ (torch.FloatTensor(samples[camera]['extrinsics'][0]).inverse())
+            
             # pose_to_pano = Twc @ torch.FloatTensor(samples[camera]['pose'][0]).inverse() # (camera -> world) -> (world -> pano) == (camera -> pano)
             # pose_to_pano_orig = params['Twc'] @ torch.FloatTensor(samples[camera]['extrinsics'][0]).inverse()
             samples[camera]['pose_to_pano'] = {0: pose_to_pano}
-
+        #TODO: make pano_mask
+        # panoramic_mask = self.create_pano_mask(samples, K, hw, Twc, self.depth_idx, self.depth_type)
+        # samples[PANO_CAMERA_NAME.lower()]['mask'] = {0: panoramic_mask}
+        
         if self.with_depth:
             depth, angle = self.create_pano_proj_maps(filename, K, hw, Twc, self.depth_idx, self.depth_type)
             depth = resize_npy_preserve(depth, hw, expand_dims=False)
@@ -372,8 +430,8 @@ if __name__ == '__main__':
     rgb_lidar = (rgb_lidar * 255.0).astype(np.uint8)
 
     rgb_lidar_image = rgb_lidar.reshape(height_pano, width_pano, 3)
-    Image.fromarray(np.vstack([rgbs, panodepth_viz, rgb_lidar_image])).save(filename + '_frame.png')
-    print('Save to {}'.format(filename + '_frame.png'))
+    Image.fromarray(np.vstack([rgbs, panodepth_viz, rgb_lidar_image])).save(filename + '_frame1.png')
+    print('Save to {}'.format(filename + '_frame1.png'))
 
     # Save to pcd/ply
     save_to_ply = False

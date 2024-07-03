@@ -32,17 +32,50 @@ class PanoSupervisedModel(BaseModel):
     def __init__(self, cfg):
         super().__init__(cfg)
 
-        self._input_keys = ('rgb', 'intrinsics', 'pose_to_pano', 'depth')
+        self._input_keys = ('rgb', 'intrinsics', 'pose_to_pano', 'depth', 'mask')
         self.produce_to_per_camera_depth = cfg_has(cfg.model, 'produce_to_per_camera_depth', False)
         self.produce_pano_image = cfg_has(cfg.model, 'produce_pano_image', False)
         self.flow_reverse = FlowReversal()
 
-    def to_per_camera_depth(self, batch, panodepth):
+    def create_pano_mask(self, batch, panodepth):
+        camera_names = [k for k in batch.keys() if k.startswith('camera_0')]
+        pano_masks = []
         K_pano = batch[PANO_CAMERA_NAME]['intrinsics'][0].float()
         Twc_pano = batch[PANO_CAMERA_NAME]['Twc'].float()
         hw_pano = batch[PANO_CAMERA_NAME]['depth'][0].shape[-2:]
         camera_pano = PanoCamera(K_pano, hw_pano, Twc=Twc_pano, name='camera_pano')
+        warp_masks=[]
+        for cam_name in camera_names:
+            batch_cam = batch[cam_name]
+            mask = batch_cam['mask']  # Assuming mask shape is [1, H, W]
 
+            # Camera setup (you need to ensure the Camera class has the methods used here)
+            hw = mask.shape[-2:]
+            K = batch_cam['intrinsics'][0].float()
+            Tcw = batch_cam['extrinsics'][0].inverse().float()
+            camera = Camera(K, hw, Tcw=Tcw, name=cam_name)
+
+            # Convert mask to panorama coordinates
+            warp_mask = camera.reconstruct_depth_map(mask, to_world=True)
+            panomask = camera_pano.project_points(warp_mask, from_world=True, normalize=True)[0]
+            warp_masks.append(warp_mask)
+        warp_masks = torch.cat(warp_masks, dim=0)
+        pano_mask = camera_pano.project_points(warp_masks, from_world=True, normalize=True)[0]
+
+        if pano_masks:
+            stacked_masks = torch.stack(pano_masks, dim=0)
+            pano_mask = stacked_masks.max(dim=0)[0]  # Using max to combine overlapping masks
+        else:
+            # If no masks are available, return a dummy or error
+            raise ValueError("No camera masks available to create a panorama mask.")
+
+        return pano_mask
+
+    def rgb_lidar(self, batch, panodepth):
+        K_pano = batch[PANO_CAMERA_NAME]['intrinsics'][0].float()
+        Twc_pano = batch[PANO_CAMERA_NAME]['Twc'].float()
+        hw_pano = batch[PANO_CAMERA_NAME]['depth'][0].shape[-2:]
+        camera_pano = PanoCamera(K_pano, hw_pano, Twc=Twc_pano, name='camera_pano')
         scale_factor = 0.5
         camera_pano = camera_pano.scaled(scale_factor)
 
@@ -51,11 +84,10 @@ class PanoSupervisedModel(BaseModel):
 
         imag_depths = []
         pano_images = []
-
         camera_names = [k for k in batch.keys() if k.startswith('camera_0')]
         for cam_name in camera_names:
             batch_cam = batch[cam_name]
-
+            
             hw = batch_cam['rgb'][0].shape[-2:]
             K = batch_cam['intrinsics'][0]     # Intrinsics are not changed over time
             Tcw = batch_cam['extrinsics'][0].inverse()
@@ -64,7 +96,6 @@ class PanoSupervisedModel(BaseModel):
             scaled_imag_shape = [int(num * scale_factor * downsample_ratio) for num in hw]
 
             camera = camera.scaled(scale_factor * downsample_ratio)
-
 
             world_points = camera_pano.reconstruct_depth_map(panodepth[0], to_world=True)
             coords = camera.project_points(world_points, from_world=True, normalize=True)[0]
@@ -75,7 +106,6 @@ class PanoSupervisedModel(BaseModel):
 
             imag_depths.append(imag_depth / (weights + 1e-6))
 
-            # TODO(chungwoo): need to use valid to filter our some area?
             warped = F.grid_sample(batch_cam['rgb'][0], coords,
                     mode='bilinear', padding_mode='zeros', align_corners=True)
             pano_images.append(warped)
@@ -87,11 +117,11 @@ class PanoSupervisedModel(BaseModel):
             # Image.fromarray((coords[0].detach().cpu().numpy() * 255.0).astype(np.uint8)).save('flow_pano.png')
             # Image.fromarray((viz_depth(panodepth[0]) * 255.0).astype(np.uint8)).save('tmp_pano.png')
             # Image.fromarray((viz_depth(imag_depths[-1]) * 255.0).astype(np.uint8)).save('tmp.png')
-        
+            
         pano_images = torch.stack(pano_images, axis=1)
         num_views = (pano_images != 0.0).sum(axis=1).clamp(min=1.0)
         pano_image = pano_images.sum(axis=1) / num_views
-        
+
         # import ipdb; ipdb.set_trace()
         # from PIL import Image
         # pano_tensor = pano_image[0]
@@ -110,7 +140,6 @@ class PanoSupervisedModel(BaseModel):
         """Forward pass with supervision to compute and optimize depth estimation."""
         ctx = 0
         filtered_batch = {cam: {k: sample[k][ctx] for k in self._input_keys if k in sample} for cam, sample in batch.items() if is_dict(sample)}
-        
 
         # Compute inverse depth and convert to actual depth
         net_output = self.networks['depth'](filtered_batch, return_logs)
@@ -133,8 +162,8 @@ class PanoSupervisedModel(BaseModel):
             return output_dict
         
         
-        depth, pano_image = self.to_per_camera_depth(batch, gt_panodepth.unsqueeze(0))
-        
+        depth, pano_image = self.rgb_lidar(batch, gt_panodepth.unsqueeze(0))
+        # pano_mask = self.create_pano_mask(batch,  gt_panodepth.unsqueeze(0))
 
         # HACK(soonminh): for per-camera evaluation
         camera_names = [k for k in batch.keys() if k.startswith('camera_0')]
@@ -146,7 +175,8 @@ class PanoSupervisedModel(BaseModel):
             **batch,
         }
         output_dict['batch']['camera_pano']['rgb'] = {0: pano_image}
-        losses = self.compute_losses(pred_panodepth, gt_panodepth)
+        
+        losses = self.compute_losses(pano_image, pred_panodepth, gt_panodepth)
 
         output_dict.update({
             'loss': losses['loss'],
@@ -156,26 +186,19 @@ class PanoSupervisedModel(BaseModel):
         
         return output_dict
 
-    def compute_losses(self, depths, gt_depths):
+    def compute_losses(self,rgb, depths, gt_depths):
         """Compute supervised and smoothness losses for depth estimation."""
         
+        rgbs = make_rgb_scales(rgb, depths)
         supervision_output = self.losses['supervised'](depths, gt_depths)
-        
-        loss = supervision_output['loss']
+        smoothness_output = self.losses['smoothness'](rgbs, depths)     
+          
+        loss = supervision_output['loss'] + \
+               smoothness_output['loss']
         
         metrics = {
-            **supervision_output['metrics']
+            **supervision_output['metrics'],
+            **smoothness_output['metrics'],
         }
-        # rgbs = make_rgb_scales(rgb, depths)
-        # supervision_output = self.losses['supervised'](depths, gt_depths)
-        # smoothness_output = self.losses['smoothness'](rgbs, depths)     
-          
-        # loss = supervision_output['loss'] + \
-        #        smoothness_output['loss']
-        
-        # metrics = {
-        #     **supervision_output['metrics'],
-        #     **smoothness_output['metrics'],
-        # }
         
         return {'loss': loss, 'metrics': metrics}

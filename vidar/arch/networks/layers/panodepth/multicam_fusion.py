@@ -75,30 +75,14 @@ class SelfAttention(nn.Module):
 
     def forward(self, x):
         batch, channels, height, width = x.size()
-        query = self.query(x).view(batch, -1, width * height).permute(0, 2, 1)
-        key = self.key(x).view(batch, -1, width * height)
-        value = self.value(x).view(batch, -1, width * height)
-        # ipdb> query.size()
-        # torch.Size([2, 32768, 288])
-        # ipdb> key.size()
-        # torch.Size([2, 288, 32768])
-        # ipdb> value.size()
-        # torch.Size([2, 2304, 32768])
-        # ipdb> width
-        # 512
-        # ipdb> height
-        # 64
-
-        # Compute the attention scores and apply softmax
-        attention_scores = torch.bmm(query, key)
-        attention = self.softmax(attention_scores)
-
-        # Apply the attention weights to the value vectors
-        weighted_values = torch.bmm(value, attention.transpose(1, 2))
-        weighted_values = weighted_values.view(batch, channels, height, width)
-
-        # Add the input and the weighted values (residual connection)
-        return x + weighted_values
+        proj_query = self.query(x).view(batch, -1, height * width).permute(0, 2, 1)
+        proj_key = self.key(x).view(batch, -1, height * width)
+        energy = torch.bmm(proj_query, proj_key)
+        attention = self.softmax(energy)
+        proj_value = self.value(x).view(batch, -1, height * width)
+        out = torch.bmm(proj_value, attention.permute(0, 2, 1))
+        return out.view(batch, channels, height, width)
+    
     
 class MultiDepthSweepFusion(nn.Module):
     """
@@ -160,13 +144,13 @@ class MultiDepthSweepFusion(nn.Module):
             out = torch.stack(panofeats, axis=1).sum(axis=1) / num_views
         else:
             multicam_panofeat = torch.stack(panofeats, axis=1)
-
+            # TODO :
             # 3. View-attention
             # Get {num_cams x num_depths}-dimensional attention mask and expand it (by broadcasting)
             # TODO(soonminh): Check if .detach() is required for attn
             attn = torch.sigmoid(self.prepare_att(torch.cat(panofeats, axis=1))).unsqueeze(2)
-            multicam_panofeat = (multicam_panofeat * attn).sum(axis=1) / num_views
-            out = self.conv(multicam_panofeat)
+            attn = attn.expand(-1, -1, multicam_panofeat.shape[2])
+            out = (attn * multicam_panofeat).sum(axis=1) / num_views
 
         # 3. TODO(soonminh): cylindrical padding to improve boundaries
 

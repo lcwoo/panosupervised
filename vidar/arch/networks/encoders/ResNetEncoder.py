@@ -87,7 +87,6 @@ class ResNetEncoder(nn.Module, ABC):
     """
     def __init__(self, cfg):
         super().__init__()
-
         self.reduction = np.array([2, 4, 8, 16, 32])
         self.num_ch_enc = np.array([64, 64, 128, 256, 512])
 

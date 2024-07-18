@@ -41,7 +41,7 @@ class RegressionHead(nn.Module):
 
     def upsample(self, x, depth_pred, scale=1.0):
         _, _, h, w = x.size()
-        import ipdb;ipdb.set_trace()
+        # import ipdb;ipdb.set_trace()
         depth_pred_attn = depth_pred * scale
         depth_pred = F.interpolate(depth_pred_attn[None,], size=(h, w), mode='nearest')
         depth_pred_final = self.cal(depth_pred, x)

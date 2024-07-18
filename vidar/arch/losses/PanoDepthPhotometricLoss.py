@@ -181,6 +181,7 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
         return (photometric_loss, None) if not debug else (photometric_loss, view_reduced_loss)
 
     def calc_smoothness_loss_masked(self, inv_depths, images, masks):
+        
         """
         Calculates the smoothness loss for inverse depth maps.
 
@@ -270,8 +271,8 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
 
                 context_tgt, T_tgt_to_world = self.get_context_and_pose(context_sources[cam_tgt], context_idx_tgt, ctx_type)
                 camera_tgt = self.get_camera(batch, cam_tgt, context_idx_tgt, T_tgt_to_world)
-
                 if return_logs:
+                    
                     self.log_images['{}_warped_{}'.format(ctx_type, cam_tgt)].append(
                         (viz_func(context_tgt[0]) * 255.0).astype(np.uint8))
                         # (context_tgt[0].permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
@@ -283,10 +284,12 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
                 mask_tgt = batch[cam_tgt]['mask']
                 masks_tgt = match_scales(mask_tgt, depths_tgt, self.n, align_corners=self.align_corners)
 
+
                 if self.pano_weight > 0.0:
                     # Prepare photometric loss on pano camera space
                     contexts_tgt_on_pano = self.warp(camera_pano, pano_depths, camera_tgt, contexts_tgt)
                     masks_tgt_on_pano = self.warp(camera_pano, pano_depths, camera_tgt, masks_tgt)
+                    import ipdb; ipdb.set_trace()
 
                 if return_logs:
                     self.log_images['{}_warped_{}'.format(ctx_type, cam_tgt)].append(
@@ -326,6 +329,7 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
                         masks_on_pano = [(masks_tgt_on_pano[i] * masks_src_on_pano[i]).eq(1.0) for i in range(self.n)]
 
                     if return_logs:
+                        import ipdb; ipdb.set_trace()
                         self.log_images['{}_warped_{}'.format(ctx_type, cam_tgt)].append(
                             (viz_func(contexts_tgt_warped[0][0]) * 255.0).astype(np.uint8))
                             # (contexts_tgt_warped[0][0].permute(1, 2, 0).detach().cpu().numpy() * 255.0).astype(np.uint8))
@@ -349,6 +353,7 @@ class PanoDepthPhotometricLoss(MultiCamPhotometricLoss):
                             photometric_losses_on_pano[i].append(photometric_loss_on_pano[i])
 
                         if return_logs and i == 0:
+                            import ipdb; ipdb.set_trace()
                             self.log_images['{}_warped_{}'.format(ctx_type, cam_tgt)].append(
                                 (torch.sigmoid(photometric_loss[i].detach().float()).repeat(1, 3, 1, 1)[0].permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8))
                                 # (viz_photo(photometric_loss[0][0, 0].detach().cpu().numpy()) * 255.0).astype(np.uint8))

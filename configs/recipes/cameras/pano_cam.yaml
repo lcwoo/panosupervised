@@ -1,6 +1,6 @@
 panocam1:
     name: panocam_150_z_-03_+02
-    position_in_world: [0, 0, 1.5]
+    position_in_world: [0, 0, 0]
     height: 256
     width: 2048
     rho: 1.0
@@ -9,7 +9,7 @@ panocam1:
 
 panocam2:
     name: panocam_150_z_-02_+02
-    position_in_world: [0, 0, 1.5]
+    position_in_world: [0, 0, 0]
     height: 256
     width: 2048
     rho: 1.0
@@ -19,7 +19,7 @@ panocam2:
 panocam3:
     name: panocam_56_0_150_z_-02_+02
     # position_in_world: [0.7, 0, 1.5]
-    position_in_world: [0.56, 0, 1.5]
+    position_in_world: [0, 0, 0]
     height: 256
     width: 2048
     rho: 1.0

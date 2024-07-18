@@ -37,7 +37,7 @@ arch:
             decoder:
               out_shape: [128, 1024]
               depth_hypothesis: [2, 3, 10, 30, 60, 90]
-              view_attention: True
+              view_attention: False
               # # Control output scale further, since intrinsics are calculated from panocam definition (256 x 2048)
               # [IMPORTANT] DO NOT TURN THIS ON. We'll lose the sharpness of the depth map we get.
               downsample: False
@@ -81,12 +81,12 @@ datasets:
         dataloader:
           batch_size: 1
           num_workers: 5
-# wandb:
-#     recipe: wandb|default
-#     project: panodepth_res_net
-#     tags: ['batch_12', 'train_on_filtered_DDAD', 'depth_hypothesis', 'positional_encoding_16', 'mobilenet_encoders']
-#     num_validation_logs: 10
-# checkpoint:
-#     recipe: checkpoint|default
-# save:
-#     recipe: save|depth_splitname
+wandb:
+    recipe: wandb|default
+    project: panodepth_res_net
+    tags: ['batch_12', 'train_on_filtered_DDAD', 'depth_hypothesis', 'positional_encoding_16', 'mobilenet_encoders']
+    num_validation_logs: 100
+checkpoint:
+    recipe: checkpoint|default
+save:
+    recipe: save|depth_splitname

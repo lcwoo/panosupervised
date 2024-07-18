@@ -57,6 +57,7 @@ def resize_npy(depth, shape, expand=True, transpose=None):
         Resized depth map [H,W]
     """
     # If a single number is provided, use resize ratio
+    # import ipdb; ipdb.set_trace()
     if not is_seq(shape):
         shape = tuple(int(s * shape) for s in depth.shape)
     if is_seq(transpose):
@@ -88,6 +89,7 @@ def resize_npy_preserve(depth, shape, expand_dims=True):
     depth : np.Array
         Resized depth map [H,W,1]
     """
+    # import ipdb; ipdb.set_trace()
     # If a single number is provided, use resize ratio
     if not is_seq(shape):
         shape = tuple(int(s * shape) for s in depth.shape)
@@ -171,6 +173,7 @@ def resize_torch_preserve(depth, shape):
 @iterate1
 def resize_npy_multiply(data, shape):
     """Resize a numpy array and scale its content accordingly"""
+    # import ipdb; ipdb.set_trace()
     ratio_w = shape[0] / data.shape[0]
     ratio_h = shape[1] / data.shape[1]
     out = resize_npy(data, shape, expand=False)
@@ -197,6 +200,7 @@ def resize_intrinsics(intrinsics, original, resized):
     intrinsics : np.Array
         Resized intrinsics matrix [3,3]
     """
+    # import ipdb; ipdb.set_trace()
     intrinsics = np.copy(intrinsics)
     intrinsics[0] *= resized[0] / original[0]
     intrinsics[1] *= resized[1] / original[1]
@@ -231,6 +235,7 @@ def resize_sample_input(sample, shape, shape_supervision=None,
         Resized sample
     """
     # Intrinsics
+    # import ipdb; ipdb.set_trace()
     for key in keys_with(sample, 'intrinsics', without='raw'):
         if f'raw_{key}' not in sample.keys():
             sample[f'raw_{key}'] = deepcopy(sample[key])
@@ -274,6 +279,7 @@ def resize_sample_supervision(sample, shape, depth_downsample=1.0, preserve_dept
         Resized sample
     """
     # Depth
+    # import ipdb; ipdb.set_trace()
     for key in keys_with(sample, 'depth', without='input_depth'):
         shape_depth = [int(s * depth_downsample) for s in shape]
         resize_npy_depth = resize_npy_preserve if preserve_depth else resize_npy
@@ -316,6 +322,7 @@ def resize_sample(sample, shape, shape_supervision=None, depth_downsample=1.0, p
     sample : Dict
         Resized sample
     """
+    # import ipdb; ipdb.set_trace()
     # Resize input information
     sample = resize_sample_input(sample, shape,
                                  depth_downsample=depth_downsample,

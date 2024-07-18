@@ -126,10 +126,12 @@ class ReprojectionLoss(BaseLoss, ABC):
         overlap_mask : torch.Tensor
             Combined overlap mask [B,1,H,W]
         """
+
         reprojection_losses = [
             self.losses['photometric'](warp, rgb)['loss'] for warp in warps]
         reprojection_loss, overlap_mask = self.reduce_reprojection(
             reprojection_losses, overlap_mask=overlap_mask)
+        import ipdb; ipdb.set_trace()
 
         if 'featuremetric' in self.losses.keys():
             featuremetric_loss = [
@@ -153,6 +155,7 @@ class ReprojectionLoss(BaseLoss, ABC):
             # reprojection_mask=valid_mask
             # reprojection_mask=multiply_any(reprojection_mask, overlap_mask)
         )
+
         reprojection_mask = multiply_args(reprojection_mask, valid_mask, overlap_mask)
 
         if logvar is not None and self.logvar_weight > 0.0:
@@ -213,6 +216,7 @@ class ReprojectionLoss(BaseLoss, ABC):
             loss_i = weights[i] * loss_i
 
             metrics[f'reprojection_loss/{i}'] = loss_i.detach()
+            import ipdb; ipdb.set_trace()
 
             losses.append(loss_i)
             masks.append(mask_i)

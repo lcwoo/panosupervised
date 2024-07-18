@@ -41,7 +41,6 @@ def generate_pano_proj_maps(camera, Xw, Xl):
     yaw = torch.atan2(yy, xx + 1e-6)
 
     # Reverse yaw to make it clockwise and add pi to start from backward
-    yaw = -yaw + torch.pi
 
     proj_angle = torch.zeros((H, W), dtype=torch.float32)
     proj_angle[uv[:, 1], uv[:, 0]] = yaw
@@ -65,6 +64,7 @@ class MultiCamOuroborosDataset(OuroborosDataset):
         samples_dict = {sample['sensor_name'].lower(): stack_sample([sample]) for sample in samples}
         samples_dict['idx'] = samples[0]['idx']
         samples_dict.update(lidar_sample)
+        
         return samples_dict
 
 
@@ -79,6 +79,7 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
 
         self.pano_name = pano_cfg.name
         self.pano_cfg = pano_cfg.dict
+        
 
     def panodepth_to_points(self, distance):
         """
@@ -208,13 +209,13 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
             pano_masks.append(projected_coords)
 
         # Stack all masks
-        import ipdb; ipdb.set_trace()
+        
         pano_masks = torch.stack(pano_masks, dim=0)
 
         return pano_mask
 
     
-    def create_pano_proj_maps(self, filename, K, hw, Twc, depth_idx, depth_type):
+    def create_pano_proj_maps(self, filename,sample, K, hw, Twc, depth_idx, depth_type):
         """
         Creates the depth map for a camera by projecting LiDAR information.
         It also caches the depth map following DGP folder structure, so it's not recalculated
@@ -247,21 +248,22 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
             return depth, angle
         except:
             pass
-
+        
+        Twc_1 = sample['camera_01']['extrinsics'][0]
+   
         # Get lidar information
         pose = self.get_current('extrinsics', depth_idx)
         transformation_matrix = torch.tensor(pose.matrix, dtype=torch.float32)
 
-        lidar_points = self.get_current('point_cloud', depth_idx)
-        lidar_points_tensor = torch.tensor(lidar_points, dtype=torch.float32)
+        lidar_points_tensor = torch.tensor(self.get_current('point_cloud', depth_idx), dtype=torch.float32)
         homogeneous_points = torch.cat((lidar_points_tensor, torch.ones((lidar_points_tensor.shape[0], 1), dtype=torch.float32)), dim=1)
-        world_points = torch.matmul(transformation_matrix, homogeneous_points.T).T[:, :3].unsqueeze(0).transpose(1, 2)
-        
+        world_points = torch.matmul(transformation_matrix, homogeneous_points.T)
+        camera_points = torch.matmul(Twc_1, world_points).T[:, :3].unsqueeze(0).transpose(1, 2)
         # Create camera
         camera = PanoCamera(K[None], hw, Twc=Twc[None])
 
         # Generate depth maps
-        depth, angle = generate_pano_proj_maps(camera, world_points, lidar_points_tensor)
+        depth, angle = generate_pano_proj_maps(camera, camera_points, lidar_points_tensor)
         
         depth = depth.numpy()
         angle = angle.numpy()
@@ -323,7 +325,8 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
 
         for i in range(self.num_cameras):
             camera = self.get_current('datum_name', i).lower()
-            pose_to_pano = Twc @ (torch.FloatTensor(samples[camera]['extrinsics'][0]).inverse())
+            Twc_i = torch.FloatTensor(samples['camera_01']['extrinsics'][0])
+            pose_to_pano = Twc_i @ (torch.FloatTensor(samples[camera]['extrinsics'][0]).inverse())
             
             # pose_to_pano = Twc @ torch.FloatTensor(samples[camera]['pose'][0]).inverse() # (camera -> world) -> (world -> pano) == (camera -> pano)
             # pose_to_pano_orig = params['Twc'] @ torch.FloatTensor(samples[camera]['extrinsics'][0]).inverse()
@@ -333,7 +336,7 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         # samples[PANO_CAMERA_NAME.lower()]['mask'] = {0: panoramic_mask}
         
         if self.with_depth:
-            depth, angle = self.create_pano_proj_maps(filename, K, hw, Twc, self.depth_idx, self.depth_type)
+            depth, angle = self.create_pano_proj_maps(filename, samples, K, hw, Twc, self.depth_idx, self.depth_type)
             depth = resize_npy_preserve(depth, hw, expand_dims=False)
             angle = resize_npy_preserve(angle, hw, expand_dims=False)
             samples[PANO_CAMERA_NAME.lower()]['depth'] = {0: depth.astype(np.float32)[None]}
@@ -369,7 +372,7 @@ if __name__ == '__main__':
             'name': 'panocam_150_z_-02_+02',
             'height': height_pano,
             'width': width_pano,
-            'position_in_world': [0, 0, 1.5],
+            'position_in_world': [0, 0, 0],
             'phi_range': [0, 6.2831853072],
             'rho': 1.0,
             'z_range': [-0.2, 0.2]}),
@@ -382,7 +385,7 @@ if __name__ == '__main__':
     print('# of frames: {}'.format(len(dataset)))
     # '000071/{}/CAMERA_01/1568648972095306'
     # Get a sample
-    data = dataset[83]
+    data = dataset[8]
 
     scene, *_, timestamp = data['camera_01']['filename'][0].split('/')
     filename = f'{scene}_{1568648972095306}'
@@ -416,15 +419,16 @@ if __name__ == '__main__':
         xyz_camera = Tpc[:3, :3] @ xyz_lidar + Tpc[:3, 3:]
         ix, iy, iz = K @ xyz_camera
         ix, iy = ((ix / iz).astype(np.int16), (iy / iz).astype(np.int16))
-
+        import ipdb; ipdb.set_trace()
         proj_on_image = np.logical_and.reduce([
             xyz_camera[2] > 0,
             ix >= 0, ix < width,
             iy >= 0, iy < height,
         ])
 
-        image = data[camera]['rgb'][0].permute(1, 2, 0).numpy()
-        rgb_lidar[proj_on_image] = image[iy[proj_on_image], ix[proj_on_image], :]
+        image = data[camera]['rgb'][0].permute(2, 1, 0).numpy()
+        import ipdb; ipdb.set_trace()
+        rgb_lidar[proj_on_image] = image[ix[proj_on_image], iy[proj_on_image], :]
 
     xyz_lidar = xyz_lidar.T
     rgb_lidar = (rgb_lidar * 255.0).astype(np.uint8)

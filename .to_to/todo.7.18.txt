@@ -1,0 +1,19 @@
+####################################################################
+#TODO: ( ~ 24.07.18)
+7/4: nothing um,m
+7/5: read a simple baseline for supervised surround view depth estimation
+& debug supervised loss 계산하는 부분 수정
+7/8: camera pano 파일에서 project points를 수정해야됨(Twc수정 요망)
+
+###########################URGENT TASK##############################
+
+make evaluation metrics
+
+####################################################################
+*consider excuting time
+
+**using self-self attention
+
+***
+
+####################################################################

@@ -266,7 +266,7 @@ class SupervisedDepthLoss(BaseLoss, ABC):
 
         for i in range(scales):
             #NOTE 원래 pred_i, gt_i = pred[i], gt[i] if is_list(gt) else gt
-            pred_i, gt_i = pred[i], gt[i] if is_list(gt) else gt
+            pred_i, gt_i = pred[i], gt if is_list(gt) else gt
             mask_i = get_mask_from_list(mask, i, return_ones=gt_i)
             soft_mask_i = get_mask_from_list(soft_mask, i)
 
@@ -274,6 +274,17 @@ class SupervisedDepthLoss(BaseLoss, ABC):
 
             metrics[f'supervised_depth_loss/{i}'] = loss_i.detach()
             losses.append(loss_i)
+
+        # # NOTE only top scale, calculate loss    
+        # pred_i = pred[0] if is_list(pred) else pred
+        # gt_i = gt
+        # mask_i = get_mask_from_list(mask, 0, return_ones=gt_i)
+        # soft_mask_i = get_mask_from_list(soft_mask, i)
+        # loss = sum(losses) / len(losses)
+        
+        # loss_i = weights[i] * self.calculate(pred_i, gt_i, mask_i, soft_mask_i)
+        # metrics[f'supervised_depth_loss/{i}'] = loss_i.detach()
+        # losses.append(loss_i) 
 
         loss = sum(losses) / len(losses)
 

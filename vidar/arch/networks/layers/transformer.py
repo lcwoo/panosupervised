@@ -6,7 +6,7 @@ import math
 import sys
 import timm
 # from timm.models.layers.mlp import Mlp
-from timm.models.layers.helpers import to_2tuple
+from timm.models.layers import to_2tuple
 from timm.models.layers import trunc_normal_
 import numpy as np
 

@@ -6,14 +6,15 @@ arch:
     model:
         file: depth/SurroundDepthModel
         checkpoint: [
-            pretrained/ddad_scale/encoder.pth,
-            pretrained/ddad_scale/depth.pth,
+            /data/disk/logs/surrounddepth/depth.pth,
+            /data/disk/logs/surrounddepth/encoder.pth
         ]
         add_prefix: [
             [encoder., networks.depth.networks.encoder.],
             [decoder., networks.depth.networks.decoder.],
             [decoder_cross., networks.depth.networks.decoder.],
         ]
+        # checkpoint_strict: True
     networks:
         depth:
             recipe: networks/surround_depth|sd_ddad

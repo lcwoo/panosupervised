@@ -199,6 +199,7 @@ class MultiViewPhotometricLoss(BaseLoss, ABC):
             ref_images[i], depths[i], ref_cams[i], cams[i],
             padding_mode=self.padding_mode) for i in range(self.n)]
         # Return warped reference image
+        import ipdb; ipdb.set_trace()
         return ref_warped
 
 ########################################################################################################################

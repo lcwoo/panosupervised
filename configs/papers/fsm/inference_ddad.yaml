@@ -4,7 +4,7 @@ wrapper:
 arch:
     model:
         file: depth/FSMModel
-        checkpoint: /data/models/papers/FSM_MR_6cams_DDAD.ckpt
+        checkpoint: /data/disk/logs/FSM_MR_6cams_DDAD.ckpt
         # checkpoint: pretrained/FSM_MR_6cams_DDAD.ckpt
 
     networks:

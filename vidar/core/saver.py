@@ -241,7 +241,7 @@ class Saver:
                             #HACK original code:resize_torch_preserve(depth[], img_shape)
                             filename = self.get_filename(path, batch, idx, i, 0)
                             write_image('%s_%s_%d_pred_viz.png' % (filename, key, ctx),
-                                        viz_depth(resize_torch_preserve(depth, img_shape)))
+                                        viz_depth(depth[0]))
 
             if key.startswith('pose'):
                 pose = {key: val[i].cpu() for key, val in predictions[key].items()}

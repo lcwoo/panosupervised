@@ -91,6 +91,7 @@ def make_val_fit(model, key, val, updated_state_dict, strict=False):
     fit = 0
     val_new = model.state_dict()[key]
     if same_shape(val.shape, val_new.shape):
+        # import ipdb; ipdb.set_trace()
         updated_state_dict[key] = val
         fit += 1
     elif not strict:
@@ -181,8 +182,11 @@ def load_checkpoint(model, checkpoint, mappings=None, strict=False, verbose=Fals
             for k, ap in add_prefix:
                 if key.startswith(k):
                     key = ap + key
-                    break
-
+                    break              
+        # if 'networks.depth.networks.decoder.decoder' in key:
+        #     import ipdb; ipdb.set_trace()
+        #     print(key)
+            
         if key in model.state_dict().keys():
             fit += make_val_fit(model, key, val, updated_state_dict, strict=strict)
 
@@ -195,6 +199,7 @@ def load_checkpoint(model, checkpoint, mappings=None, strict=False, verbose=Fals
                         updated_state_dict[new_key] = val
                         fit += 1
 
+    # keys = [k for k in updated_state_dict.keys() if 'flat_grid' in k]
     model.load_state_dict(updated_state_dict, strict=strict)
 
     if verbose:

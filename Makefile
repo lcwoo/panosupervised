@@ -14,7 +14,6 @@ WANDB_MODE ?= run
 DOCKER_OPTS := \
     --rm -it \
     --gpus all \
-    --runtime=nvidia \
     --shm-size=${SHMSIZE} \
     -e AWS_DEFAULT_REGION \
     -e AWS_ACCESS_KEY_ID \

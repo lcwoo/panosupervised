@@ -383,7 +383,7 @@ class Camera(nn.Module, ABC):
         else:
             return points.view(-1, 3, d, h, w)
 
-    def project_points(self, points, from_world=True, normalize=True, return_z=False, return_valid=False):
+    def project_points(self, points,from_world=True, normalize=True, return_z=False, return_valid=False):
         """
         Project points back to image plane
 
@@ -410,6 +410,9 @@ class Camera(nn.Module, ABC):
 
         if is_depth_map:
             points = points.reshape(points.shape[0], 3, -1)
+            points = points.permute(0, 2, 1)
+            points = points[:, :, [0, 2, 1]] 
+            points = points.permute(0, 2, 1)
         b, _, n = points.shape
 
         points = torch.matmul(self.Pwc(from_world), cat_channel_ones(points, 1))

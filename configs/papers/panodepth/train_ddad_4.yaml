@@ -67,20 +67,20 @@ datasets:
     train:
         # recipe: datasets/ddad|train_selfsup_panodepth
         # path: [/data/datasets/DDAD/ddad_train_val/ddad.json]
-        recipe: datasets/ddad_tiny|train_selfsup_panodepth
+        recipe: datasets/ddad_tiny|train_sup_panodepth
         labels: [depth, pose]
         repeat: [1]
         dataloader:
-          batch_size: 2
-          num_workers: 2   # If pin_memory is True, requires ~59GB RAM per 8 workers
+          batch_size: 1
+          num_workers: 0   # If pin_memory is True, requires ~59GB RAM per 8 workers
         #num_workers: 32   # If pin_memory is True, requires ~59GB RAM per 8 workers
     validation:
         # recipe: datasets/ddad|validation_panodepth
         recipe: datasets/ddad_tiny|validation_panodepth
         labels: [depth, pose]
         dataloader:
-          batch_size: 2
-          num_workers: 2
+          batch_size: 1
+          num_workers: 3
 # wandb:
 #     recipe: wandb|default
 #     project: panodepth

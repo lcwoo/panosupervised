@@ -158,7 +158,7 @@ class WandbLogger:
         for key, image in output.pop('log_images', {}).items():
             self._metrics.update(prep_image(key, prefix, image))    
 
-        for data, suffix in zip([batch, output['predictions'],output['gt_panodepth']], ['-gt', '-pred']):
+        for data, suffix in zip([batch, output['predictions'],output['gt_panodepth']], ['-gt', '-pred','-gt']):
             for key in data.keys():
                 if key.startswith('rgb'):
                     self._metrics.update(log_rgb(

@@ -1,13 +1,13 @@
 wrapper:
     recipe: wrapper|default
     flip_lr_prob: 0.0
-    validate_flipped: False
+    validate_flipped: True
     validate_first: True
 arch:
     model:
         file: depth/PanoSupervisedModel
-        checkpoint: /data/disk/logs/checkpoints/soft-tree-60/models/020.ckpt
-        checkpoint_strict: True
+        checkpoint: /data/disk/logs/checkpoints/2024-07-18_10h26m34s/models/001.ckpt
+        checkpoint_strict: False
     networks:
         depth:
             recipe: networks/multicam_depth_net|panodepth_ddad_resnet
@@ -15,18 +15,33 @@ evaluation:
     panodepth:
         recipe: evaluation/depth|ddad_resize
         post_process: False
+        only_first: True
+        show_sensor_name: True
 datasets:
     validation:
         # recipe: datasets/ddad|validation_panodepth
         recipe: datasets/ddad_tiny|validation_panodepth
+        path: [
+            /data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json
+            # /data/datasets/DDAD/ddad_train_val/ddad_000179.json,
+            # /data/datasets/DDAD/ddad_train_val/ddad_000171.json,
+            # /data/datasets/DDAD/ddad_train_val/ddad_000169.json,
+            # /data/datasets/DDAD/ddad_train_val/ddad_000168.json,
+            # /data/datasets/DDAD/ddad_train_val/ddad_000167.json,
+            # /data/datasets/DDAD/ddad_train_val/ddad_000160.json,
+            # /data/datasets/DDAD/ddad_train_val/ddad_000158.json,
+            # /data/datasets/DDAD/ddad_train_val/ddad_000157.json,
+            # /data/datasets/DDAD/ddad_train_val/ddad_000155.json,
+            # /data/datasets/DDAD/ddad_train_val/ddad_000153.json,
+        ]
         labels: [depth, pose]
         # dataloader:
         #   batch_size: 1
         #   num_workers: 0
-save:
-    recipe: save|depth_splitname
-    type: PanoSaver
-    rgb: [tgt]
-    depth: [gt_viz, gt_npz, viz, npz]
-    naming: filename
-    store_data: False
+# save:
+#     recipe: save|depth_splitname
+#     type: PanoSaver
+#     rgb: [tgt]
+#     depth: [gt_viz, gt_npz, viz, npz]
+#     naming: filename
+#     store_data: False

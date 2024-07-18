@@ -73,7 +73,7 @@ def generate_proj_maps(camera, Xw, Xl, shape):
     yaw = np.arctan2(yy, xx + 1e-6)
 
     # HACK(soonminh): Reverse yaw to make it clockwise and add pi to start from backward
-    yaw = -yaw + np.pi
+    yaw = -yaw
 
     proj_angle = np.zeros((H, W), dtype=np.float32)
     proj_angle[uv[:, 1], uv[:, 0]] = yaw

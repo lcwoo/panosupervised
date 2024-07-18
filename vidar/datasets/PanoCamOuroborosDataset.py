@@ -38,7 +38,7 @@ def generate_pano_proj_maps(camera, Xw, Xl):
     # Calculate yaw angle in LiDAR coordinate
     xx = Xl[in_view][:, 0]
     yy = Xl[in_view][:, 1]
-    yaw = torch.atan2(yy, xx + 1e-6)
+    yaw = torch.atan2(yy, xx + 1e-6) - np.pi
 
     # Reverse yaw to make it clockwise and add pi to start from backward
 
@@ -419,7 +419,6 @@ if __name__ == '__main__':
         xyz_camera = Tpc[:3, :3] @ xyz_lidar + Tpc[:3, 3:]
         ix, iy, iz = K @ xyz_camera
         ix, iy = ((ix / iz).astype(np.int16), (iy / iz).astype(np.int16))
-        import ipdb; ipdb.set_trace()
         proj_on_image = np.logical_and.reduce([
             xyz_camera[2] > 0,
             ix >= 0, ix < width,
@@ -427,7 +426,6 @@ if __name__ == '__main__':
         ])
 
         image = data[camera]['rgb'][0].permute(2, 1, 0).numpy()
-        import ipdb; ipdb.set_trace()
         rgb_lidar[proj_on_image] = image[ix[proj_on_image], iy[proj_on_image], :]
 
     xyz_lidar = xyz_lidar.T

@@ -28,7 +28,7 @@ arch:
         file: depth/PanoSupervisedModel
     networks:
         depth:
-            recipe: networks/multicam_depth_net|panodepth_ddad_resnet
+            recipe: networks/multicam_depth_net|panodepth_ddad
             min_depth: 2.0
             max_depth: 200.0
             scale_invdepth: inverse
@@ -70,19 +70,19 @@ datasets:
         labels: [depth, pose]
         repeat: [1]
         dataloader:
-          batch_size: 5
-          num_workers: 5  # If pin_memory is True, requires ~59GB RAM per 8 workers
+          batch_size: 8
+          num_workers: 4  # If pin_memory is True, requires ~59GB RAM per 8 workers
         #num_workers: 32   # If pin_memory is True, requires ~59GB RAM per 8 workers
     validation:
         # recipe: datasets/ddad|validation_panodepth
         recipe: datasets/ddad_tiny|validation_panodepth
         labels: [depth, pose]
         dataloader:
-          batch_size: 5
+          batch_size: 1
           num_workers: 5
 wandb:
     recipe: wandb|default
-    project: panodepth
+    project: panodepth_mobile
     tags: ['batch_12', 'train_on_filtered_DDAD', 'depth_hypothesis', 'positional_encoding_16', 'mobilenet_encoders']
     num_validation_logs: 10
 # checkpoint:

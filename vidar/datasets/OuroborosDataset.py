@@ -53,6 +53,7 @@ def generate_proj_maps(camera, Xw, Xl, shape):
         Rendered depth image
     """
     assert len(shape) == 2, 'Shape needs to be 2-tuple.'
+    Xl = torch.tensor(Xl, dtype=torch.float32)
     # Move point cloud to the camera's (C) reference frame from the world (W)
     Xc = camera.p_cw * Xw
     # Project the points as if they were in the camera's frame of reference

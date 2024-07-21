@@ -223,6 +223,8 @@ class SupervisedDepthLoss(BaseLoss, ABC):
             Supervised depth loss [1]
         """
         # Interpolations
+        #모든 decoder에 대해서 loss 계산
+        # import ipdb; ipdb.set_trace()
         pred = self.interp_nearest(pred, gt)
         mask = self.interp_nearest(mask, gt)
         soft_mask = self.interp_bilinear(soft_mask, gt)
@@ -265,7 +267,9 @@ class SupervisedDepthLoss(BaseLoss, ABC):
         losses, metrics = [], {}
 
         for i in range(scales):
+            
             #NOTE 원래 pred_i, gt_i = pred[i], gt[i] if is_list(gt) else gt
+            # import ipdb; ipdb.set_trace()
             pred_i, gt_i = pred[i], gt if is_list(gt) else gt
             mask_i = get_mask_from_list(mask, i, return_ones=gt_i)
             soft_mask_i = get_mask_from_list(soft_mask, i)

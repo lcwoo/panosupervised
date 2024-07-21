@@ -30,7 +30,7 @@ class PanoCamera(Camera):
         self.rho = 1.0
 
     def to_polar(self, z, x):
-        return (x ** 2 + z ** 2 + 1e-8).sqrt(), torch.atan2(x, z + 1e-8)
+        return (x ** 2 + z ** 2 + 1e-8).sqrt(), torch.atan2(z, x + 1e-8)
 
     def to_cartesian(self, rho, phi):
         return rho * torch.cos(phi), rho * torch.sin(phi)
@@ -52,7 +52,7 @@ class PanoCamera(Camera):
         tx = camera_cfg['width'] / (phi_max - phi_min) * (math.pi - phi_min)
 
         z_min, z_max = camera_cfg['z_range']
-        fy = - camera_cfg['height'] / (z_max - z_min)
+        fy =  camera_cfg['height'] / (z_max - z_min)
         ty =   camera_cfg['height'] * (1 + z_min / (z_max - z_min))
 
         hw = [camera_cfg['height'], camera_cfg['width']]
@@ -61,10 +61,18 @@ class PanoCamera(Camera):
             [ 0, fy, ty],
             [ 0,  0,  1]])
 
-        # TODO(sohwang): Compute rotation from config
-        Twc = torch.eye(4, dtype=torch.float32)
-        Twc[ 1, 1] *= -1    # to make phi clockwise
-        Twc[:3, 3] = - torch.FloatTensor(camera_cfg['position_in_world'])
+        # TODO(chungwoo): Compute rotation from config
+        Twc = torch.tensor([
+            [0.0443, -0.9989, -0.0123, 0.2045],
+            [-0.0156, 0.0116, -0.9998, 1.5288],
+            [0.9989, 0.0445, -0.0150, -1.3988],
+            [0.0000, 0.0000, 0.0000, 1.0000]
+        ], dtype=torch.float32)
+        # Twc[ 1, 1] *= -1 # to make phi clockwise
+
+        # Twc = torch.eye(4, dtype=torch.float32)
+        # Twc[ 1, 1] *= -1    # to make phi clockwise
+        # Twc[:3, 3] = - torch.FloatTensor(camera_cfg['position_in_world'])
         return {'K': K, 'hw': hw, 'Twc': Twc}
     
     #TODO: make mask wrap function for pano camera
@@ -169,7 +177,7 @@ class PanoCamera(Camera):
         grid = pixel_grid(depth, with_ones=True, device=depth.device).view(b, 3, -1)
         xnorm_polar = torch.matmul(self.invK[:, :3, :3], grid)
 
-        phi, yy = xnorm_polar[:, 0] - torch.pi , -xnorm_polar[:, 1]
+        phi, yy = xnorm_polar[:, 0] , xnorm_polar[:, 1]
         zz, xx = self.to_cartesian(self.rho, phi)
         xnorm = torch.stack([xx, yy, zz], dim=1).view(b, 3, -1)
 

@@ -38,7 +38,7 @@ def generate_pano_proj_maps(camera, Xw, Xl):
     # Calculate yaw angle in LiDAR coordinate
     xx = Xl[in_view][:, 0]
     yy = Xl[in_view][:, 1]
-    yaw = torch.atan2(yy, xx + 1e-6) - np.pi
+    yaw = torch.atan2(yy, xx + 1e-6)
 
     # Reverse yaw to make it clockwise and add pi to start from backward
 
@@ -257,13 +257,25 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
 
         lidar_points_tensor = torch.tensor(self.get_current('point_cloud', depth_idx), dtype=torch.float32)
         homogeneous_points = torch.cat((lidar_points_tensor, torch.ones((lidar_points_tensor.shape[0], 1), dtype=torch.float32)), dim=1)
-        world_points = torch.matmul(transformation_matrix, homogeneous_points.T)
-        camera_points = torch.matmul(Twc_1, world_points).T[:, :3].unsqueeze(0).transpose(1, 2)
+        # world_points = torch.matmul(transformation_matrix, homogeneous_points.T)
+        world_points = torch.matmul(transformation_matrix, homogeneous_points.T).T[:, :3].unsqueeze(0).transpose(1, 2)
+        # camera_points = torch.matmul(Twc_1, world_points).T[:, :3].unsqueeze(0).transpose(1, 2)
+        # # HACK: (chungwoo): 나중 코드 작성 편의를 위해 camera 좌표계에 있는 camera_points를 월드 좌표계의 순서대로 바꿈 -x-> y, z -> x, x y
+        # T = torch.tensor([
+        #     [0, 0, 1],
+        #     [-1, 0, 0],
+        #     [0, -1, 0]
+        # ], dtype=torch.float32)
+
+        # camera_points_transformed = torch.matmul(T,camera_points)
+
         # Create camera
         camera = PanoCamera(K[None], hw, Twc=Twc[None])
 
         # Generate depth maps
-        depth, angle = generate_pano_proj_maps(camera, camera_points, lidar_points_tensor)
+        depth, angle = generate_pano_proj_maps(camera, world_points, lidar_points_tensor)
+        # depth, angle = generate_pano_proj_maps(camera, camera_points, lidar_points_tensor)
+        # depth, angle = generate_pano_proj_maps(camera, camera_points_transformed, lidar_points_tensor)
         
         depth = depth.numpy()
         angle = angle.numpy()
@@ -294,6 +306,8 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         # TODO(soonminh): follow the same convention with OuroborosDataset
         # e.g. some entities such as intrinsics and depth should be dicts by context index
         params = PanoCamera.params_from_config(self.pano_cfg)
+
+        # import ipdb; ipdb.set_trace()
         hw = params['hw']
         K = params['K']
         # Twc = params['Twc'] @ lidar_pose

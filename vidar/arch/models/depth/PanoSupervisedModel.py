@@ -170,6 +170,7 @@ class PanoSupervisedModel(BaseModel):
         
         gt_panodepth = batch['camera_pano']['depth'][0]
         gt_panodepth = resize_torch_preserve(gt_panodepth, (128, 1024))
+        
         # output_dict = {'predictions': {'panodepth': {0: pred_panodepth}}}
         output_dict = {
             'predictions': {
@@ -209,7 +210,6 @@ class PanoSupervisedModel(BaseModel):
 
     def compute_losses(self, depths, gt_depths):
         """Compute supervised and smoothness losses for depth estimation."""
-        
         supervision_output = self.losses['supervised'](depths, gt_depths)
           
         loss = supervision_output['loss'] 

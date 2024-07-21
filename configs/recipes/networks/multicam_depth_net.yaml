@@ -106,7 +106,7 @@ panodepth_ddad_resnet:
         num_ch_out: 1
         downsample: False
         depth_focal: 1.0
-        positional_encoding: 0
+        positional_encoding: 16
 
 panodepth_ddad_resnet_shared:
     file: depth/MultiCamDepthNet

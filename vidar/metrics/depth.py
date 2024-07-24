@@ -272,6 +272,17 @@ class PanoDepthEvaluation(DepthEvaluation):
 
         # return metrics_all, predictions_all
 
+    def mask_evaluation(self, batch, output, flipped_output=None):
+        # Create mask by yaw and evaluate multiple times
+        depth_yaw = batch['camera_pano']['depth_yaw'][0]
+
+        yaw_ranges = [
+            (    'All', np.deg2rad(  0), np.deg2rad(360)),
+        ]
+        yaw_ranges += [(f'{ymin}-{ymax}', np.deg2rad(ymin), np.deg2rad(ymax))
+                        for ymin, ymax in zip(np.arange(0, 360, 30), np.arange(15, 361, 30))]
+
+        import pdb; pdb.set_trace()
 
 class MaskedDepthEvaluation(DepthEvaluation):
     """

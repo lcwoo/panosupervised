@@ -21,7 +21,7 @@ def generate_pano_proj_maps(camera, Xw, Xl):
 
     # Create an empty image to overlay
     H, W = camera.hw
-    proj_depth = torch.zeros((H, W), dtype=torch.float32)
+    proj_depth = torch.zeros((H, W), dtype=torch.float32).to(uv.device)
     
     in_view = (uv >= 0).all(dim=1) & (uv[:, 0] < W) & (uv[:, 1] < H) & (rho > 0)
     uv = uv[in_view]
@@ -42,7 +42,7 @@ def generate_pano_proj_maps(camera, Xw, Xl):
 
     # Reverse yaw to make it clockwise and add pi to start from backward
 
-    proj_angle = torch.zeros((H, W), dtype=torch.float32)
+    proj_angle = torch.zeros((H, W), dtype=torch.float32, device=uv.device)
     proj_angle[uv[:, 1], uv[:, 0]] = yaw
 
     return proj_depth, proj_angle
@@ -249,14 +249,12 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         except:
             pass
         
-        Twc_1 = sample['camera_01']['extrinsics'][0]
-   
         # Get lidar information
         pose = self.get_current('extrinsics', depth_idx)
-        transformation_matrix = torch.tensor(pose.matrix, dtype=torch.float32)
+        transformation_matrix = torch.tensor(pose.matrix, dtype=torch.float32).to(torch.device('cuda'))
 
-        lidar_points_tensor = torch.tensor(self.get_current('point_cloud', depth_idx), dtype=torch.float32)
-        homogeneous_points = torch.cat((lidar_points_tensor, torch.ones((lidar_points_tensor.shape[0], 1), dtype=torch.float32)), dim=1)
+        lidar_points_tensor = torch.tensor(self.get_current('point_cloud', depth_idx), dtype=torch.float32).to(torch.device('cuda'))
+        homogeneous_points = torch.cat((lidar_points_tensor, torch.ones((lidar_points_tensor.shape[0], 1), dtype=torch.float32,device=torch.device('cuda'))), dim=1)
         # world_points = torch.matmul(transformation_matrix, homogeneous_points.T)
         world_points = torch.matmul(transformation_matrix, homogeneous_points.T).T[:, :3].unsqueeze(0).transpose(1, 2)
         # camera_points = torch.matmul(Twc_1, world_points).T[:, :3].unsqueeze(0).transpose(1, 2)
@@ -277,8 +275,8 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         # depth, angle = generate_pano_proj_maps(camera, camera_points, lidar_points_tensor)
         # depth, angle = generate_pano_proj_maps(camera, camera_points_transformed, lidar_points_tensor)
         
-        depth = depth.numpy()
-        angle = angle.numpy()
+        depth = depth.detach().cpu().numpy()
+        angle = angle.detach().cpu().numpy()
 
         save_to_file(filename_depth, {'depth': depth, 'angle': angle})
         return depth, angle

@@ -26,7 +26,6 @@ class PanoCamera(Camera):
     def __init__(self, K, hw, Twc=None, Tcw=None, name=''):
         super().__init__(K, hw, Twc, Tcw, name)
 
-        # TODO(sohwang): read rho from config
         self.rho = 1.0
 
     def to_polar(self, z, x):
@@ -46,7 +45,6 @@ class PanoCamera(Camera):
         assert all([k in camera_cfg for k in MUST_HAVE_KEYS]), \
             'Incomplete camera config. Need {}, but only has {}.'.format(
                 MUST_HAVE_KEYS, camera_cfg.keys())
-
         phi_min, phi_max = camera_cfg['phi_range']
         fx = camera_cfg['width'] / (phi_max - phi_min)
         tx = camera_cfg['width'] / (phi_max - phi_min) * (math.pi - phi_min)
@@ -56,11 +54,13 @@ class PanoCamera(Camera):
         ty =   camera_cfg['height'] * (1 + z_min / (z_max - z_min))
 
         hw = [camera_cfg['height'], camera_cfg['width']]
+        # TODO: (chungwoo) K하고 Twc를 gpu에 올리수 있도록 수정 )
+        
         K = torch.FloatTensor([
             [fx,  0, tx],
             [ 0, fy, ty],
             [ 0,  0,  1]])
-
+        
         # TODO(chungwoo): Compute rotation from config
         Twc = torch.tensor([
             [0.0443, -0.9989, -0.0123, 0.2045],
@@ -68,6 +68,7 @@ class PanoCamera(Camera):
             [0.9989, 0.0445, -0.0150, -1.3988],
             [0.0000, 0.0000, 0.0000, 1.0000]
         ], dtype=torch.float32)
+
         # Twc[ 1, 1] *= -1 # to make phi clockwise
 
         # Twc = torch.eye(4, dtype=torch.float32)
@@ -186,7 +187,9 @@ class PanoCamera(Camera):
 
         if to_world and self.Tcw is not None:
             points = self.Tcw * points
-        return points.view(b, 3, h, w)
+
+        # import ipdb; ipdb.set_trace()
+        return points.view(b, 3, -1)
 
     def reconstruct_cost_volume(self, volume, to_world=True, flatten=True):
         raise NotImplementedError
@@ -227,7 +230,7 @@ class PanoCamera(Camera):
         # points = torch.matmul(self.Pwc(from_world), cat_channel_ones(points, 1))
 
         if from_world:
-            Xc = self.Twc * points
+            Xc = self.Twc.to(device) * points
         else:
             Xc = points
 
@@ -236,7 +239,7 @@ class PanoCamera(Camera):
         Xp_z = Xc[:, 1] / Xp_rho * self.rho
 
         # Project 3D points onto the camera image plane
-        points = self.K.bmm(
+        points = self.K.to(device).bmm(
             torch.stack([Xp_pi, Xp_z, torch.ones_like(Xp_pi, device=device), torch.ones_like(Xp_pi, device=device)], axis=1))
 
 
@@ -263,7 +266,7 @@ class PanoCamera(Camera):
             invalid = (coords[:, 0] < -1) | (coords[:, 0] > 1) | \
                       (coords[:, 1] < -1) | (coords[:, 1] > 1) | (depth[:, 0] < 0)
             coords[invalid.unsqueeze(1).repeat(1, 2, 1, 1)] = -2
-
+            
         if return_z:
             return coords.permute(0, 2, 3, 1), depth
         else:

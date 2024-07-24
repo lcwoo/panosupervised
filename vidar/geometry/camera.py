@@ -37,6 +37,10 @@ class Camera(nn.Module, ABC):
         assert Twc is None or Tcw is None
 
         # Fold if multi-batch
+        #HACK:(chungwoo)(7월22일) K를 gpu에 올릴 수 있게 수정
+
+        K = K.to(torch.device('cuda'))
+        Twc = Twc.to(torch.device('cuda'))
 
         if K.dim() == 4:
             K = rearrange(K, 'b n h w -> (b n) h w')

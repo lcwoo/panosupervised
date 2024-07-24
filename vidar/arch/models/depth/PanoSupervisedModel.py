@@ -169,8 +169,8 @@ class PanoSupervisedModel(BaseModel):
         pred_panodepth = inv2depth(net_output['inv_depths'])
         
         gt_panodepth = batch['camera_pano']['depth'][0]
-        gt_panodepth = resize_torch_preserve(gt_panodepth, (128, 1024))
-        
+        # import ipdb; ipdb.set_trace()
+        # gt_panodepth = resize_torch_preserve(gt_panodepth, (128, 1024))
         # output_dict = {'predictions': {'panodepth': {0: pred_panodepth}}}
         output_dict = {
             'predictions': {

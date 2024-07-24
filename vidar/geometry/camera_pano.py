@@ -62,19 +62,12 @@ class PanoCamera(Camera):
             [ 0,  0,  1]])
         
         # TODO(chungwoo): Compute rotation from config
-        Twc = torch.tensor([
-            [0.0443, -0.9989, -0.0123, 0.2045],
-            [-0.0156, 0.0116, -0.9998, 1.5288],
-            [0.9989, 0.0445, -0.0150, -1.3988],
-            [0.0000, 0.0000, 0.0000, 1.0000]
-        ], dtype=torch.float32)
-
         # Twc[ 1, 1] *= -1 # to make phi clockwise
 
         # Twc = torch.eye(4, dtype=torch.float32)
         # Twc[ 1, 1] *= -1    # to make phi clockwise
         # Twc[:3, 3] = - torch.FloatTensor(camera_cfg['position_in_world'])
-        return {'K': K, 'hw': hw, 'Twc': Twc}
+        return {'K': K, 'hw': hw}
     
     #TODO: make mask wrap function for pano camera
     def project_mask_to_pano(mask, Twc_i, K_i):
@@ -196,7 +189,83 @@ class PanoCamera(Camera):
 
     def Pwc(self, from_world=True):
         raise NotImplementedError
+    
+    def project_points_with_cam1(self, points,Twc, from_world=True, normalize=True, return_z=False):
+        """
+        Project points back to image plane
 
+        Parameters
+        ----------
+        points : torch.Tensor
+            Input 3D points [B,3,H,W] or [B,3,N]
+        from_world : Bool
+            Whether points are in the global frame
+        normalize : Bool
+            Whether projections should be normalized to [-1,1]
+        return_z : Bool
+            Whether projected depth is return as well
+
+        Returns
+        -------
+        coords : torch.Tensor
+            Projected 2D coordinates [B,2,H,W]
+        depth : torch.Tensor
+            Projected depth [B,1,H,W]
+        """
+        is_depth_map = points.dim() == 4
+        hw = self._hw if not is_depth_map else points.shape[-2:]
+        device = points.device
+
+        if is_depth_map:
+            points = points.reshape(points.shape[0], 3, -1)
+        b, _, n = points.shape
+
+        # points = torch.matmul(self.Pwc(from_world), cat_channel_ones(points, 1))
+        
+        if from_world:
+            Xc = Twc.to(device) * points
+        else:
+            Xc = points
+
+        # Cartesian -> Polar
+        Xp_rho, Xp_pi = self.to_polar(Xc[:, 2], Xc[:, 0])
+        Xp_z = Xc[:, 1] / Xp_rho * self.rho
+
+        # Project 3D points onto the camera image plane
+        points = self.K.to(device).bmm(
+            torch.stack([Xp_pi, Xp_z, torch.ones_like(Xp_pi, device=device), torch.ones_like(Xp_pi, device=device)], axis=1))
+
+
+        coords = points[:, :2] / (points[:, 2].unsqueeze(1) + 1e-8)
+        # depth = points[:, 2]
+        depth = Xp_rho
+
+        if not is_depth_map:
+            if normalize:
+                coords = norm_pixel_grid(coords, hw=self._hw, in_place=True)
+                invalid = (coords[:, 0] < -1) | (coords[:, 0] > 1) | \
+                          (coords[:, 1] < -1) | (coords[:, 1] > 1) | (depth < 0)
+                coords[invalid.unsqueeze(1).repeat(1, 2, 1)] = -2
+            if return_z:
+                return coords.permute(0, 2, 1), depth
+            else:
+                return coords.permute(0, 2, 1)
+
+        coords = coords.view(b, 2, *hw)
+        depth = depth.view(b, 1, *hw)
+
+        if normalize:
+            coords = norm_pixel_grid(coords, hw=self._hw, in_place=True)
+            invalid = (coords[:, 0] < -1) | (coords[:, 0] > 1) | \
+                      (coords[:, 1] < -1) | (coords[:, 1] > 1) | (depth[:, 0] < 0)
+            coords[invalid.unsqueeze(1).repeat(1, 2, 1, 1)] = -2
+            
+        if return_z:
+            return coords.permute(0, 2, 3, 1), depth
+        else:
+            return coords.permute(0, 2, 3, 1)
+        
+        
     def project_points(self, points, from_world=True, normalize=True, return_z=False):
         """
         Project points back to image plane

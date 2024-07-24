@@ -13,9 +13,9 @@ from vidar.datasets.utils.misc import stack_sample
 PANO_CAMERA_NAME = 'camera_pano'
 
 
-def generate_pano_proj_maps(camera, Xw, Xl):
+def generate_pano_proj_maps(camera, Xw, Xl,Twc):
     # Project the points
-    uv_tensor, rho_tensor = camera.project_points(Xw, normalize=False, return_z=True)
+    uv_tensor, rho_tensor = camera.project_points_with_cam1(Xw,Twc, normalize=False, return_z=True)
     uv = uv_tensor[0].long()  # Convert to long for indexing
     rho = rho_tensor[0]
 
@@ -215,7 +215,7 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         return pano_mask
 
     
-    def create_pano_proj_maps(self, filename,sample, K, hw, Twc, depth_idx, depth_type):
+    def create_pano_proj_maps(self, filename, K, hw, Twc, depth_idx, depth_type):
         """
         Creates the depth map for a camera by projecting LiDAR information.
         It also caches the depth map following DGP folder structure, so it's not recalculated
@@ -248,7 +248,7 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
             return depth, angle
         except:
             pass
-        
+
         # Get lidar information
         pose = self.get_current('extrinsics', depth_idx)
         transformation_matrix = torch.tensor(pose.matrix, dtype=torch.float32).to(torch.device('cuda'))
@@ -271,7 +271,7 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         camera = PanoCamera(K[None], hw, Twc=Twc[None])
 
         # Generate depth maps
-        depth, angle = generate_pano_proj_maps(camera, world_points, lidar_points_tensor)
+        depth, angle = generate_pano_proj_maps(camera, world_points, lidar_points_tensor, Twc)
         # depth, angle = generate_pano_proj_maps(camera, camera_points, lidar_points_tensor)
         # depth, angle = generate_pano_proj_maps(camera, camera_points_transformed, lidar_points_tensor)
         
@@ -312,7 +312,7 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         # extrinsics = params['Twc']
         # Twc = extrinsics @ lidar_pose
         # Twc = extrinsics
-        Twc = params['Twc']
+        Twc = torch.FloatTensor(samples['camera_01']['extrinsics'][0])
         samples[PANO_CAMERA_NAME.lower()] = {
             'filename': {0: filename},
             'hw': hw,
@@ -337,8 +337,7 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
 
         for i in range(self.num_cameras):
             camera = self.get_current('datum_name', i).lower()
-            Twc_i = torch.FloatTensor(samples['camera_01']['extrinsics'][0])
-            pose_to_pano = Twc_i @ (torch.FloatTensor(samples[camera]['extrinsics'][0]).inverse())
+            pose_to_pano = Twc @ (torch.FloatTensor(samples[camera]['extrinsics'][0]).inverse())
             
             # pose_to_pano = Twc @ torch.FloatTensor(samples[camera]['pose'][0]).inverse() # (camera -> world) -> (world -> pano) == (camera -> pano)
             # pose_to_pano_orig = params['Twc'] @ torch.FloatTensor(samples[camera]['extrinsics'][0]).inverse()
@@ -348,7 +347,7 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         # samples[PANO_CAMERA_NAME.lower()]['mask'] = {0: panoramic_mask}
         
         if self.with_depth:
-            depth, angle = self.create_pano_proj_maps(filename, samples, K, hw, Twc, self.depth_idx, self.depth_type)
+            depth, angle = self.create_pano_proj_maps(filename, K, hw, Twc, self.depth_idx, self.depth_type)
             depth = resize_npy_preserve(depth, hw, expand_dims=False)
             angle = resize_npy_preserve(angle, hw, expand_dims=False)
             samples[PANO_CAMERA_NAME.lower()]['depth'] = {0: depth.astype(np.float32)[None]}

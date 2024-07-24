@@ -6,7 +6,7 @@ import torch
 
 from vidar.geometry.camera import Camera
 from vidar.geometry.pose import Pose
-from vidar.utils.tensor import pixel_grid, norm_pixel_grid
+from vidar.utils.tensor import pixel_grid, norm_pixel_grid, cat_channel_ones
 
 class PanoCamera(Camera):
     """
@@ -221,9 +221,8 @@ class PanoCamera(Camera):
         b, _, n = points.shape
 
         # points = torch.matmul(self.Pwc(from_world), cat_channel_ones(points, 1))
-        
         if from_world:
-            Xc = Twc.to(device) * points
+            Xc = torch.matmul(Twc.to(device), cat_channel_ones(points, 1))
         else:
             Xc = points
 

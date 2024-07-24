@@ -59,8 +59,7 @@ RUN pip install \
     pyyaml==6.0.1 \
     fire \
     pyquaternion==0.9.9 \
-    pandas==1.1.5 \
-    xarray==0.16.2 \
+    xarray==2024.6.0 \
     diskcache==5.2.1 \
     tenacity==7.0.0 \
     awscli \
@@ -70,6 +69,7 @@ RUN pip install \
     scikit-image==0.19.3 \
     timm==0.6.11
 
+    # pandas==1.1.5 \
 #    ftfy \
 #    regex \
 #    tqdm
@@ -93,7 +93,7 @@ RUN apt-get update & apt-get install -y \
 #RUN pip install pytorch3d
 RUN pip install "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.5"
 # Install CuPY
-RUN pip install cupy
+# RUN pip install cupy
 
 # Install extras (should be moved to top when stable)
 #RUN pip install lpips wget scikit-image pyhocon dotmap path sacremoses filelock huggingface_hub

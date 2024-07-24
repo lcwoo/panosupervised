@@ -71,22 +71,24 @@ datasets:
         labels: [depth, pose]
         repeat: [1]
         dataloader:
-          batch_size: 4
-          num_workers: 5  # If pin_memory is True, requires ~59GB RAM per 8 workers
+            batch_size: 2
+            num_workers: 0  # If pin_memory is True, requires ~59GB RAM per 8 workers
+            pin_memory: True
         #num_workers: 32   # If pin_memory is True, requires ~59GB RAM per 8 workers
     validation:
         # recipe: datasets/ddad|validation_panodepth
         recipe: datasets/ddad_tiny|validation_panodepth
         labels: [depth, pose]
         dataloader:
-          batch_size: 1
-          num_workers: 4
-wandb:
-    recipe: wandb|default
-    project: panodepth_res_net_tiny
-    tags: ['batch_12', 'train_on_filtered_DDAD', 'depth_hypothesis', 'positional_encoding_16', 'mobilenet_encoders']
-    num_validation_logs: 10
-checkpoint:
-    recipe: checkpoint|default
-save:
-    recipe: save|depth_splitname
+            batch_size: 1
+            num_workers: 4
+            pin_memory: True
+# wandb:
+#     recipe: wandb|default
+#     project: panodepth_res_net_tiny
+#     tags: ['batch_12', 'train_on_filtered_DDAD', 'depth_hypothesis', 'positional_encoding_16', 'mobilenet_encoders']
+#     num_validation_logs: 10
+# checkpoint:
+#     recipe: checkpoint|default
+# save:
+#     recipe: save|depth_splitname

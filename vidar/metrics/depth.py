@@ -11,6 +11,7 @@ from vidar.utils.distributed import on_rank_0
 from vidar.utils.logging import pcolor
 from vidar.utils.types import is_dict
 
+# DEPTH_METRICS = ('abs_rel', 'sqr_rel', 'rmse', 'rmse_log', 'silog', 'a1', 'a2', 'a3','camera_01','camera_05','camera_06','camera_07','camera_08','camera_09')
 DEPTH_METRICS = ('abs_rel', 'sqr_rel', 'rmse', 'rmse_log', 'silog', 'a1', 'a2', 'a3')
 
 class DepthEvaluation(BaseEvaluation):
@@ -100,6 +101,8 @@ class DepthEvaluation(BaseEvaluation):
         metrics : torch.Tensor
             Depth metrics
         """
+        #TODO: 각 카메라에 대한 evaluation metrics 추가해야됨
+        #TODO: mask를 이용한 evaluation 추가해야됨
         # Match predicted depth map to ground-truth resolution
         pred = scale_output(pred, gt, self.scale_output)
         # Create crop mask if requested
@@ -174,6 +177,9 @@ class DepthEvaluation(BaseEvaluation):
         predictions : Dict
             Dictionary with additional predictions
         """
+        
+        #TODO: pano_mask를 만들어야됨
+        
         metrics, predictions = {}, {}
         if self.name not in batch:
             return metrics, predictions
@@ -239,8 +245,24 @@ class PanoDepthEvaluation(DepthEvaluation):
     """
     def __init__(self, cfg):
         super().__init__(cfg, name='panodepth', task='panodepth')
+        # self._input_keys = ('rgb', 'intrinsics', 'pose_to_pano', 'depth', 'mask')
         if self.post_process:
             raise NotImplementedError
+        
+    #TODO:다른 카메라 정보를 입력해야돼
+    # def evaluate(self, batch, output, flipped_output=None):
+    #     ctx = 0
+    #     filtered_batch = {}
+    #     for cam, sample in batch.items():
+    #         if is_dict(sample):
+    #             if cam == 'camera_pano':
+    #                 # 오직 depth 정보만 저장
+    #                 filtered_batch[cam] = {'depth': sample['depth'][ctx]}
+    #             else:
+    #                 # 기타 다른 camera에 대해선 _input_keys에 있는 필드만 저장
+    #                 filtered_batch[cam] = {k: sample[k][ctx] for k in self._input_keys if k in sample}
+    #     return super().evaluate(filtered_batch, output, flipped_output)
+
 
     def evaluate(self, batch, output, flipped_output=None):
         # TODO(soonminh): Support post-process (flip multicam batch)

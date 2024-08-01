@@ -98,6 +98,8 @@ class FeatTransform(nn.Module):
     def forward(self, x, meta):
         in_intrinsic = meta[self._camera_name]['intrinsics'].clone().float()
         out_intrinsic = meta[PANO_CAMERA_NAME]['intrinsics'].clone().float()
+        # if self._camera_name == PANO_CAMERA_NAME:
+        #     import ipdb; ipdb.set_trace()
         relative_pose = Pose(meta[self._camera_name]['pose_to_pano'].clone().float().inverse())
 
         scaler = 1.0 / self._in_scale

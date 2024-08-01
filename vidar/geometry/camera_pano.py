@@ -169,17 +169,17 @@ class PanoCamera(Camera):
 
         b, _, h, w = depth.shape
         grid = pixel_grid(depth, with_ones=True, device=depth.device).view(b, 3, -1)
-        xnorm_polar = torch.matmul(self.invK[:, :3, :3], grid)
+        xnorm_polar = torch.matmul(self.invK[:, :3, :3].detach().to(depth.device), grid)
 
         phi, yy = xnorm_polar[:, 0] , xnorm_polar[:, 1]
-        zz, xx = self.to_cartesian(self.rho, phi)
+        xx, zz = self.to_cartesian(self.rho, phi)
         xnorm = torch.stack([xx, yy, zz], dim=1).view(b, 3, -1)
 
         # Scale rays to metric depth
         points = xnorm * depth.view(b, 1, -1)
 
         if to_world and self.Tcw is not None:
-            points = self.Tcw * points
+            points = self.Tcw.detach().to(depth.device) * points
 
         # import ipdb; ipdb.set_trace()
         return points.view(b, 3, -1)
@@ -190,7 +190,7 @@ class PanoCamera(Camera):
     def Pwc(self, from_world=True):
         raise NotImplementedError
     
-    def project_points_with_cam1(self, points,Twc, from_world=True, normalize=True, return_z=False):
+    def project_points_with_cam1(self, points, Twc, from_world=True, normalize=True, return_z=False):
         """
         Project points back to image plane
 
@@ -227,7 +227,7 @@ class PanoCamera(Camera):
             Xc = points
 
         # Cartesian -> Polar
-        Xp_rho, Xp_pi = self.to_polar(Xc[:, 2], Xc[:, 0])
+        Xp_rho, Xp_pi = self.to_polar(Xc[:, 2], Xc[:,0])
         Xp_z = Xc[:, 1] / Xp_rho * self.rho
 
         # Project 3D points onto the camera image plane

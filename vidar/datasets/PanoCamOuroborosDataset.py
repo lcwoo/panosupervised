@@ -38,7 +38,7 @@ def generate_pano_proj_maps(camera, Xw, Xl,Twc):
     # Calculate yaw angle in LiDAR coordinate
     xx = Xl[in_view][:, 0]
     yy = Xl[in_view][:, 1]
-    yaw = torch.atan2(yy, xx + 1e-6)
+    yaw = torch.atan2(xx, -yy + 1e-6)
 
     # Reverse yaw to make it clockwise and add pi to start from backward
 

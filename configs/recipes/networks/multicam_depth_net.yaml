@@ -100,7 +100,7 @@ panodepth_ddad_resnet:
         file: decoders/PanoDepthDecoder
         fusion_type: MultiDepthSweepFusion
         ref_shape: [256, 2048]
-        out_shape: [256, 2048]
+        out_shape: [128, 1024]
         use_skips: True
         activation: sigmoid
         num_ch_out: 1

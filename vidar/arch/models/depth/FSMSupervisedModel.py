@@ -231,7 +231,7 @@ class FSMSupervisedModel(BaseModel):
             cam_context_i[tgt], inv2depth(inv_depth_i[tgt]), cam_i[tgt])
             for tgt in range(n_tgt)]
         mono_masks = [mask_from_coords(coords) for coords in mono_coords]
-
+        import ipdb; ipdb.set_trace()
         filename = batch['filename']
         try:
             filename = ['camera' + f[0].split('/')[-2][-3:]+ '_mask.npy' for f in filename[0]]
@@ -269,7 +269,7 @@ class FSMSupervisedModel(BaseModel):
                 [cam_i[src]], inv2depth(inv_depth_i[tgt]), cam_i[tgt])
                 for tgt, src in self.pairs]
             stereo_masks = [mask_from_coords(coords) for coords in stereo_coords]
-
+            import ipdb; ipdb.set_trace()
             if with_masks:
                 for tgt in range(len(self.pairs)):
                     for i in range(len(stereo_masks[tgt])):

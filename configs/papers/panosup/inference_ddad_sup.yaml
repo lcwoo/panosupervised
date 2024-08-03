@@ -6,7 +6,7 @@ wrapper:
 arch:
     model:
         file: depth/PanoSupervisedModel
-        checkpoint: /data/disk/logs/checkpoints/2024-07-18_10h26m34s/models/001.ckpt
+        checkpoint: /data/disk/logs/checkpoints/royal-sunset-81/models/100.ckpt
         checkpoint_strict: False
     networks:
         depth:

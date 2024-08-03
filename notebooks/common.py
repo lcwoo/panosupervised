@@ -22,11 +22,11 @@ def visualize_3d(xyz, rgb=None, size=0.03, height=480, width=480):
     pointCloud = pjs.Points(geometry=geometry, material=material)
 
     pythreejs_camera = pjs.PerspectiveCamera(
-        up=[1, 0, 1],
+        up=[0, 1, 0],
         children=[pjs.DirectionalLight(color='white', intensity=0.5)])
 
     pythreejs_camera.rotateX(np.pi/4)
-    pythreejs_camera.position = (-15., 0., 30.)
+    pythreejs_camera.position = (-60., 60., 80.)
 
     scene = pjs.Scene(children=[
                     pointCloud,

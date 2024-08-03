@@ -38,17 +38,25 @@ optimizers:
             gamma: 0.5
 datasets:
     train:
-        recipe: datasets/ddad|train_selfsup_6cams
+        recipe: datasets/ddad_tiny|train_sup_6cams_fsm
         labels: [depth, pose]
         repeat: [1]
+        dataloader:
+            batch_size: 2
+            num_workers: 0  # If pin_memory is True, requires ~59GB RAM per 8 workers
+            pin_memory: True
     validation:
-        recipe: datasets/ddad|validation_6cams
+        recipe: datasets/ddad_tiny|validation_sup_6cams_fsm
         labels: [depth, pose]
         repeat: [1]
-wandb:
-    recipe: wandb|default
-    project: vidar_baselines
-    tags: ['fsm_sup']
+        dataloader:
+            batch_size: 1
+            num_workers: 5  # If pin_memory is True, requires ~59GB RAM per 8 workers
+            pin_memory: True
+# wandb:
+#     recipe: wandb|default
+#     project: vidar_baselines
+#     tags: ['fsm_sup']
 # checkpoint:
 #     recipe: checkpoint|default
 # save:

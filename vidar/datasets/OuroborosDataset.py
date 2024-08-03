@@ -281,7 +281,7 @@ class OuroborosDataset(BaseDataset):
         phi = np.arctan2(y, x + 1e-6)
         # Make phi positive/clockwise angle
         phi = -phi + np.pi
-
+        import ipdb;ipdb.set_trace()
         rays = np.stack([theta, phi], axis=0).reshape(2, *image_shape).astype(np.float32)
         return rays
 

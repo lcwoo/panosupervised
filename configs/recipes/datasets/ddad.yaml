@@ -68,7 +68,7 @@ train_selfsup_panodepth:
     pano_cam_config:
         recipe: cameras/pano_cam|panocam3
     name: [PanoCamOuroboros]
-    masks: ['/data/datasets/DDAD/mask']
+    masks: ['/home/lcw/workspace/panosupervised/data/masks']
     path: [/data/datasets/DDAD/ddad_train_val/ddad.json]
     split: [train]
     augmentation:
@@ -88,8 +88,8 @@ validation_panodepth:
     pano_cam_config:
         recipe: cameras/pano_cam|panocam3
     name: [PanoCamOuroboros]
-    masks: ['/data/datasets/DDAD/mask']
-    path: [/data/datasets/DDAD/ddad_train_val/ddad.json]
+    masks: ['/home/lcw/workspace/panosupervised/data/masks']
+    path: [/data/datasets/ddads/ddad_train_val/ddad.json]
     split: [val]
     augmentation:
         resize: [384, 640]

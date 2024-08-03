@@ -39,8 +39,8 @@ class Camera(nn.Module, ABC):
         # Fold if multi-batch
         #HACK:(chungwoo)(7월22일) K를 gpu에 올릴 수 있게 수정
 
-        K = K.to(torch.device('cuda'))
-        Twc = Twc.to(torch.device('cuda'))
+        # K = K.to(torch.device('cuda'))
+        # Twc = Twc.to(torch.device('cuda'))
 
         if K.dim() == 4:
             K = rearrange(K, 'b n h w -> (b n) h w')
@@ -352,9 +352,16 @@ class Camera(nn.Module, ABC):
             return None
         b, _, h, w = depth.shape
         grid = pixel_grid(depth, with_ones=True, device=depth.device).view(b, 3, -1)
+        
+        if depth.device != self.invK.device:
+            points = depth.view(b, 1, -1) * torch.matmul(self.invK[:, :3, :3].detach().to(depth.device), grid)
+            if to_world and self.Tcw is not None:
+                points = self.Tcw.detach().to(depth.device) * points
+            return points.view(b, 3, h, w)
+        
         points = depth.view(b, 1, -1) * torch.matmul(self.invK[:, :3, :3], grid)
         if to_world and self.Tcw is not None:
-            points = self.Tcw * points
+            points = self.Tcw.detach().to(depth.device) * points
         return points.view(b, 3, h, w)
 
     def reconstruct_cost_volume(self, volume, to_world=True, flatten=True):

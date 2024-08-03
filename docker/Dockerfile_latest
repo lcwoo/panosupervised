@@ -83,11 +83,13 @@ RUN pip install \
     PyOpenGL \
     PyOpenGL-accelerate
 
-RUN apt-get update & apt-get install -y \
+RUN apt-get update && apt-get install -y \
     mesa-utils \
     freeglut3-dev \
     python-pygame \
-    libsdl2-2.0-0
+    libsdl2-2.0-0\
+    libgl1-mesa-dev\
+    libosmesa6-dev
 
 # Install PyTorch3D
 #RUN pip install pytorch3d

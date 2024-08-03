@@ -147,7 +147,46 @@ class PanoCamera(Camera):
         projected_mask[pixels_y[valid_indices], pixels_x[valid_indices]] = mask_values[valid_indices]
 
         return projected_mask
+    
 
+    # def reconstruct_depth_map_cam1(self, depth,Tcw_1, to_world=False):
+    #     """
+    #     Reconstruct a depth map from the camera viewpoint
+
+    #     Parameters
+    #     ----------
+    #     depth : torch.Tensor
+    #         Input depth map [B,1,H,W]
+    #     to_world : Bool
+    #         Transform points to world coordinates
+
+    #     Returns
+    #     -------
+    #     points : torch.Tensor
+    #         Output 3D points [B,3,H,W]
+    #     """
+    #     if depth is None:
+    #         return None
+
+    #     b, _, h, w = depth.shape
+    #     grid = pixel_grid(depth, with_ones=True, device=depth.device).view(b, 3, -1)
+    #     xnorm_polar = torch.matmul(self.invK[:, :3, :3].detach().to(depth.device), grid)
+
+    #     phi, yy = xnorm_polar[:, 0] , xnorm_polar[:, 1]
+    #     xx, zz = self.to_cartesian(self.rho, phi)
+    #     xnorm = torch.stack([xx, yy, zz], dim=1).view(b, 3, -1)
+
+    #     # Scale rays to metric depth
+    #     points = xnorm * depth.view(b, 1, -1)
+
+    #     if to_world and Tcw_1 is not None:
+    #         ones = torch.ones(1, 1, points.shape[2], device=points.device)
+    #         points_homogeneous = torch.cat((points, ones), dim=1)
+    #         points = torch.matmul(Tcw_1, points_homogeneous)[:, :3, :]
+
+    #     # import ipdb; ipdb.set_trace()
+    #     return points.view(b, 3, -1)
+    
     def reconstruct_depth_map(self, depth, to_world=False):
         """
         Reconstruct a depth map from the camera viewpoint
@@ -303,7 +342,7 @@ class PanoCamera(Camera):
             Xc = points
 
         # Cartesian -> Polar
-        Xp_rho, Xp_pi = self.to_polar(Xc[:, 2], Xc[:, 0])
+        Xp_rho, Xp_pi = self.to_polar(Xc[:, 0], Xc[:, 2])
         Xp_z = Xc[:, 1] / Xp_rho * self.rho
 
         # Project 3D points onto the camera image plane

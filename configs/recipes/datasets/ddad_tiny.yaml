@@ -135,7 +135,7 @@ train_sup_panodepth:
     pano_cam_config:
         recipe: cameras/pano_cam|panocam3
     name: [PanoCamOuroboros]
-    masks: ['/data/datasets/DDAD/mask']
+    masks: ['/home/lcw/workspace/panosupervised/data/masks']
     path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
     split: [train]
     augmentation:
@@ -155,7 +155,7 @@ validation_panodepth:
     pano_cam_config:
         recipe: cameras/pano_cam|panocam3
     name: [PanoCamOuroboros]
-    masks: ['/data/datasets/DDAD/mask']
+    masks: ['/home/lcw/workspace/panosupervised/data/masks']
     path: [/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json]
     split: [val]
     augmentation:

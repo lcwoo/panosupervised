@@ -73,7 +73,7 @@ class FeatTransform(nn.Module):
         yy = xnorm_out_polar[:, 1]
         rho = torch.ones_like(phi)  # TODO(soonminh): Assuming unit cylinder, rho == 1
 
-        zz, xx = self.to_cartesian(rho, phi)
+        xx, zz = self.to_cartesian(rho, phi)
         xnorm_out_cartesian = torch.stack([xx, yy, zz], dim=1)
 
         xnorm_out = xnorm_out_cartesian * self._given_depth

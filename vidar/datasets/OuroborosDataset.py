@@ -76,10 +76,10 @@ def generate_proj_maps(camera, Xw, Xl, shape):
     # Calculate yaw angle in LiDAR coordinate
     xx = Xl[in_view][:, 0]
     yy = Xl[in_view][:, 1]
-    yaw = torch.atan2(yy, xx + 1e-6)
+    yaw = torch.atan2(xx, -yy + 1e-6)
 
     # HACK(soonminh): Reverse yaw to make it clockwise and add pi to start from backward
-    yaw = -yaw
+    # yaw = -yaw
     yaw = yaw.to(torch.float64)
     proj_angle = torch.zeros((H, W), dtype=torch.float64, device=uv.device)
     proj_angle[uv[:, 1], uv[:, 0]] = yaw

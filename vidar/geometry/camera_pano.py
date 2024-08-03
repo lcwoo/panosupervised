@@ -172,7 +172,7 @@ class PanoCamera(Camera):
         xnorm_polar = torch.matmul(self.invK[:, :3, :3].detach().to(depth.device), grid)
 
         phi, yy = xnorm_polar[:, 0] , xnorm_polar[:, 1]
-        xx, zz = self.to_cartesian(self.rho, phi)
+        zz, xx = self.to_cartesian(self.rho, phi)
         xnorm = torch.stack([xx, yy, zz], dim=1).view(b, 3, -1)
 
         # Scale rays to metric depth
@@ -227,7 +227,7 @@ class PanoCamera(Camera):
             Xc = points
 
         # Cartesian -> Polar
-        Xp_rho, Xp_pi = self.to_polar(Xc[:, 2], Xc[:,0])
+        Xp_rho, Xp_pi = self.to_polar(Xc[:, 0], Xc[:,2])
         Xp_z = Xc[:, 1] / Xp_rho * self.rho
 
         # Project 3D points onto the camera image plane

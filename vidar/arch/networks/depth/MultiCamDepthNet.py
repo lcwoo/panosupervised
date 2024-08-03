@@ -141,9 +141,10 @@ class MultiCamDepthNet(BaseNet, ABC):
                                 for k in decoder_required_keys if k in sample}
 
         log_images = {}
+        #HACK: feature 뽑을 때부터 mask씌우자
         if 'encoders' in self.networks:
             # Per-camera encoders
-            per_camera_features = {key: self.networks['encoders'][key](sample['rgb'])
+            per_camera_features = {key: self.networks['encoders'][key](sample['rgb']*sample['mask'])
                                     for key, sample in batch.items() if 'rgb' in sample}
         else:
             # Shared encoder
@@ -151,7 +152,7 @@ class MultiCamDepthNet(BaseNet, ABC):
                 # SurroundDepth
                 per_camera_features = self.networks['encoder'](batch['rgb'])
             else:
-                per_camera_features = {key: self.networks['encoder'](sample['rgb'])
+                per_camera_features = {key: self.networks['encoder'](sample['rgb']*sample['mask'])
                                         for key, sample in batch.items() if 'rgb' in sample}
 
         # Predict depth from multi-cam features

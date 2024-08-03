@@ -15,10 +15,10 @@ PANO_CAMERA_NAME = 'camera_pano'
 
 def generate_pano_proj_maps(camera, Xw, Xl,Twc):
     # Project the points
-    uv_tensor, rho_tensor = camera.project_points_with_cam1(Xw,Twc, normalize=False, return_z=True)
+    uv_tensor, rho_tensor = camera.project_points_with_cam1(Xw,Twc,from_world=True, normalize=False, return_z=True)
     uv = uv_tensor[0].long()  # Convert to long for indexing
     rho = rho_tensor[0]
-
+    
     # Create an empty image to overlay
     H, W = camera.hw
     proj_depth = torch.zeros((H, W), dtype=torch.float32).to(uv.device)
@@ -39,6 +39,7 @@ def generate_pano_proj_maps(camera, Xw, Xl,Twc):
     xx = Xl[in_view][:, 0]
     yy = Xl[in_view][:, 1]
     yaw = torch.atan2(xx, -yy + 1e-6)
+    # yaw = -yaw
 
     # Reverse yaw to make it clockwise and add pi to start from backward
 
@@ -128,7 +129,7 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         phi = np.arctan2(y, x + 1e-6)
         # Make phi positive/clockwise angle
         phi = -phi + np.pi
-
+        import ipdb; ipdb.set_trace()
         rays = np.stack([theta, phi], axis=0).reshape(2, *image_shape)
         return rays
 

@@ -77,6 +77,7 @@ class ViewSynthesis(nn.Module, ABC):
         output : Dict
             Dictionary containing warped images and masks
         """
+        import ipdb; ipdb.set_trace()
         if depths is not None and cams is not None:
             cams_tgt = cams[0] if is_list(cams) else cams
             cams_ctx = cams[1] if is_list(cams) else cams
@@ -95,7 +96,7 @@ class ViewSynthesis(nn.Module, ABC):
 
     def forward(self, rgbs, depths=None, cams=None,
                 optical_flow=None, return_masks=False, tgt=0):
-
+        import ipdb; ipdb.set_trace()
         context = [key for key in rgbs.keys() if key != tgt]
         num_scales = self.get_num_scales(depths, optical_flow)
 

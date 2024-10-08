@@ -2,14 +2,39 @@ import numpy as np
 import os
 import torch
 
-from vidar.datasets.augmentations.resize import resize_npy_preserve
+from vidar.datasets.augmentations.resize import resize_npy_preserve, resize_angle_npy_preserve
 from vidar.geometry.camera_pano import PanoCamera
 from vidar.datasets.OuroborosDataset import load_from_file, save_to_file, generate_proj_maps
 from vidar.datasets.OuroborosDataset import OuroborosDataset
 from vidar.datasets.utils.misc import stack_sample
-
+from vidar.utils.types import is_str
 
 PANO_CAMERA_NAME = 'camera_pano'
+
+def load_from_file(filename, *keys):
+    """Load data cache from a file"""
+    # Check if single string is provided
+    if len(keys) == 1 and isinstance(keys[0], list):
+        keys = keys[0]  # Unpack the list to individual keys
+
+    data = np.load(filename, allow_pickle=True)
+
+    # Initialize output list
+    out = []
+    for k in keys:
+        try:
+            out.append(data[k])
+        except KeyError:
+            print(f"Key '{k}' not found in the file.")
+            out.append(None)
+
+    # Check if all outputs are None, indicating the keys were not found
+    if all(o is None for o in out):
+        out = None
+    elif len(out) == 1:
+        out = out[0]  # Return the single item if only one key was requested
+
+    return out
 
 
 def generate_pano_proj_maps(camera, Xw, Xl):
@@ -30,32 +55,34 @@ def generate_pano_proj_maps(camera, Xw, Xl):
     """
     # Project the points
     uv_tensor, rho_tensor = camera.project_points(Xw, normalize=False, return_z=True)
-    uv = uv_tensor[0].numpy().astype(int)
-    # Colorize the point cloud based on depth
-    rho = rho_tensor[0].numpy()
+    uv = uv_tensor[0].long()  # Convert to long for indexing
+    rho = rho_tensor[0]
 
     # Create an empty image to overlay
     H, W = camera.hw
-    proj_depth = np.zeros((H, W), dtype=np.float32)
-    in_view = np.logical_and.reduce([(uv >= 0).all(axis=1), uv[:, 0] < W, uv[:, 1] < H, rho > 0])
-    uv, rho = uv[in_view], rho[in_view]
+    proj_depth = torch.zeros((H, W), dtype=torch.float32).to(uv.device)
+    
+    in_view = (uv >= 0).all(dim=1) & (uv[:, 0] < W) & (uv[:, 1] < H) & (rho > 0)
+    uv = uv[in_view]
+    rho = rho[in_view]
 
-    # TODO(sohwang): this is not enough, we need meshes and filter points by z-buffer.
     # Sort by distance to pick closest one if multiple LiDAR points are projected onto a single pixel
-    order = np.argsort(rho)[::-1]
+    order = torch.argsort(rho, descending=True)
     uv = uv[order]
     rho = rho[order]
+
+    # Direct indexing on tensors to fill the image
     proj_depth[uv[:, 1], uv[:, 0]] = rho
 
     # Calculate yaw angle in LiDAR coordinate
     xx = Xl[in_view][:, 0]
     yy = Xl[in_view][:, 1]
-    yaw = np.arctan2(yy, xx + 1e-6)
+    
+    yaw = torch.atan2(yy, xx + 1e-6)
+    yaw = yaw[order]
 
-    # HACK(soonminh): Reverse yaw to make it clockwise and add pi to start from backward
-    yaw = -yaw + np.pi
 
-    proj_angle = np.zeros((H, W), dtype=np.float32)
+    proj_angle = torch.zeros((H, W), dtype=torch.float32, device=uv.device)
     proj_angle[uv[:, 1], uv[:, 0]] = yaw
 
     return proj_depth, proj_angle
@@ -114,6 +141,7 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         params = PanoCamera.params_from_config(self.pano_cfg)
         hw = params['hw']
         K = params['K']
+        # import ipdb; ipdb.set_trace()
 
         Twc = params['Twc']
         h, w = hw
@@ -201,16 +229,22 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
             pass
 
         # Get lidar information
-        lidar_extrinsics = self.get_current('extrinsics', depth_idx)
-        lidar_points = self.get_current('point_cloud', depth_idx)
-        world_points = (lidar_extrinsics * lidar_points).T
+        pose = self.get_current('extrinsics', depth_idx)
+        transformation_matrix = torch.tensor(pose.matrix, dtype=torch.float32).to(torch.device('cuda'))
+
+        lidar_points_tensor = torch.tensor(self.get_current('point_cloud', depth_idx), dtype=torch.float32).to(torch.device('cuda'))
+        homogeneous_points = torch.cat((lidar_points_tensor, torch.ones((lidar_points_tensor.shape[0], 1), dtype=torch.float32,device=torch.device('cuda'))), dim=1)
+        # world_points = torch.matmul(transformation_matrix, homogeneous_points.T)
+        world_points = torch.matmul(transformation_matrix, homogeneous_points.T).T[:, :3].unsqueeze(0).transpose(1, 2)
 
         # Create camera
         camera = PanoCamera(K[None], hw, Twc=Twc[None])
-        world_points = torch.FloatTensor(world_points[None])
 
         # Generate depth maps
-        depth, angle = generate_pano_proj_maps(camera, world_points, lidar_points)
+        depth, angle = generate_pano_proj_maps(camera, world_points, lidar_points_tensor)
+
+        depth = depth.detach().cpu().numpy()
+        angle = angle.detach().cpu().numpy()
 
         save_to_file(filename_depth, {'depth': depth, 'angle': angle})
         return depth, angle
@@ -277,148 +311,148 @@ class PanoCamOuroborosDataset(MultiCamOuroborosDataset):
         if self.with_depth:
             depth, angle = self.create_pano_proj_maps(filename, K, hw, Twc, self.depth_idx, self.depth_type)
             depth = resize_npy_preserve(depth, hw, expand_dims=False)
-            angle = resize_npy_preserve(angle, hw, expand_dims=False)
+            angle = resize_angle_npy_preserve(angle, hw, expand_dims=False)
             samples[PANO_CAMERA_NAME.lower()]['depth'] = {0: depth.astype(np.float32)[None]}
             samples[PANO_CAMERA_NAME.lower()]['angle'] = {0: angle.astype(np.float32)[None]}
 
         return samples
 
 
-if __name__ == '__main__':
-    """Generate RGB + PanoDepth image for debugging"""
+# if __name__ == '__main__':
+#     """Generate RGB + PanoDepth image for debugging"""
 
-    import cv2
-    from PIL import Image
-    from struct import pack, unpack
+#     import cv2
+#     from PIL import Image
+#     from struct import pack, unpack
 
-    from vidar.datasets.utils.transforms import get_transforms
-    from vidar.utils.config import Config
-    from vidar.utils.viz import viz_depth
+#     from vidar.datasets.utils.transforms import get_transforms
+#     from vidar.utils.config import Config
+#     from vidar.utils.viz import viz_depth
 
-    height, width = (384, 640)
-    height_pano, width_pano = (256, 2048)
-    params = {
-        'name': 'PanoCamOuroboros',
-        # 'path': '/data/datasets/DDAD_tiny/ddad_tiny_000071.json',
-        'path': '/data/datasets/DDAD/ddad_train_val/ddad.json',
-        'split': 'train',
-        'context': [-1, 1],
-        'labels': ['depth', 'pose'],
-        'cameras': [1, 5, 6, 7, 8, 9],
-        'depth_type': 'lidar',
-        'repeat': 1,
-        'pano_cam_config': Config(**{
-            'name': 'panocam_150_z_-02_+02',
-            'height': height_pano,
-            'width': width_pano,
-            'position_in_world': [0, 0, 1.5],
-            'phi_range': [0, 6.2831853072],
-            'rho': 1.0,
-            'z_range': [-0.2, 0.2]}),
-        'data_transform':
-            get_transforms('train', Config(**{'resize': [height, width]})),
-    }
+#     height, width = (384, 640)
+#     height_pano, width_pano = (256, 2048)
+#     params = {
+#         'name': 'PanoCamOuroboros',
+#         # 'path': '/data/datasets/DDAD_tiny/ddad_tiny_000071.json',
+#         'path': '/data/datasets/DDAD/ddad_train_val/ddad_overfit_000071.json',
+#         'split': 'train',
+#         'context': [-1, 1],
+#         'labels': ['depth', 'pose'],
+#         'cameras': [1, 5, 6, 7, 8, 9],
+#         'depth_type': 'lidar',
+#         'repeat': 1,
+#         'pano_cam_config': Config(**{
+#             'name': 'panocam_150_z_-02_+02',
+#             'height': height_pano,
+#             'width': width_pano,
+#             'position_in_world': [0, 0, 1.5],
+#             'phi_range': [0, 6.2831853072],
+#             'rho': 1.0,
+#             'z_range': [-0.2, 0.2]}),
+#         'data_transform':
+#             get_transforms('train', Config(**{'resize': [height, width]})),
+#     }
 
-    # Initialize dataset
-    dataset = PanoCamOuroborosDataset(**params)
-    print('# of frames: {}'.format(len(dataset)))
+#     # Initialize dataset
+#     dataset = PanoCamOuroborosDataset(**params)
+#     print('# of frames: {}'.format(len(dataset)))
 
-    # Get a sample
-    data = dataset[0]
+#     # Get a sample
+#     data = dataset[0]
 
-    scene, *_, timestamp = data['camera_01']['filename'][0].split('/')
-    filename = f'{scene}_{timestamp}'
-    panodepth = data['camera_pano']['depth']
-    panodepth_viz = (viz_depth(panodepth[0][0], filter_zeros=False) * 255.0).astype(np.uint8)
-    tensor_to_rgb_viz = lambda x: (x.permute(1, 2, 0) * 255.0).numpy().astype(np.uint8)
-    rgbs = np.hstack(
-        [tensor_to_rgb_viz(data[c]['rgb'][0]) for c in data.keys() if c.startswith('camera_0')]
-    )
+#     scene, *_, timestamp = data['camera_01']['filename'][0].split('/')
+#     filename = f'{scene}_{timestamp}'
+#     panodepth = data['camera_pano']['depth']
+#     panodepth_viz = (viz_depth(panodepth[0][0], filter_zeros=False) * 255.0).astype(np.uint8)
+#     tensor_to_rgb_viz = lambda x: (x.permute(1, 2, 0) * 255.0).numpy().astype(np.uint8)
+#     rgbs = np.hstack(
+#         [tensor_to_rgb_viz(data[c]['rgb'][0]) for c in data.keys() if c.startswith('camera_0')]
+#     )
 
-    rgbs = cv2.resize(rgbs, (panodepth_viz.shape[1], panodepth_viz.shape[0]))
+#     rgbs = cv2.resize(rgbs, (panodepth_viz.shape[1], panodepth_viz.shape[0]))
 
-    # From PanoDepth to ImageDepth
-    panodepth_tensor = torch.FloatTensor(panodepth[0])[None]
-    params = PanoCamera.params_from_config(params['pano_cam_config'].dict)
-    camera = PanoCamera(params['K'][None], params['hw'], params['Twc'][None])
+#     # From PanoDepth to ImageDepth
+#     panodepth_tensor = torch.FloatTensor(panodepth[0])[None]
+#     params = PanoCamera.params_from_config(params['pano_cam_config'].dict)
+#     camera = PanoCamera(params['K'][None], params['hw'], params['Twc'][None])
 
-    # xyz_lidar = camera.reconstruct_depth_map(panodepth_tensor, to_world=True)
-    xyz_lidar = camera.reconstruct_depth_map(panodepth_tensor, to_world=False)
-    xyz_lidar = xyz_lidar.view(3, -1).numpy()
-    rgb_lidar = np.zeros_like(xyz_lidar).T
-    import pdb; pdb.set_trace()
-    for camera in dataset.sensors:
-        if not camera.startswith('camera'):
-            continue
-        print('RGB from {}'.format(data[camera]['filename'][0]))
+#     # xyz_lidar = camera.reconstruct_depth_map(panodepth_tensor, to_world=True)
+#     xyz_lidar = camera.reconstruct_depth_map(panodepth_tensor, to_world=False)
+#     xyz_lidar = xyz_lidar.view(3, -1).numpy()
+#     rgb_lidar = np.zeros_like(xyz_lidar).T
+#     # import pdb; pdb.set_trace()
+#     for camera in dataset.sensors:
+#         if not camera.startswith('camera'):
+#             continue
+#         print('RGB from {}'.format(data[camera]['filename'][0]))
 
-        K = data[camera]['intrinsics'][0].numpy()
-        # Twc = data[camera]['extrinsics'][0].numpy()
-        # xyz_camera = Twc[:3, :3] @ xyz_lidar + Twc[:3, 3:]
-        Tpc = np.linalg.inv(data[camera]['pose_to_pano'][0])
-        xyz_camera = Tpc[:3, :3] @ xyz_lidar + Tpc[:3, 3:]
-        ix, iy, iz = K @ xyz_camera
-        ix, iy = ((ix / iz).astype(np.int16), (iy / iz).astype(np.int16))
+#         K = data[camera]['intrinsics'][0].numpy()
+#         # Twc = data[camera]['extrinsics'][0].numpy()
+#         # xyz_camera = Twc[:3, :3] @ xyz_lidar + Twc[:3, 3:]
+#         Tpc = np.linalg.inv(data[camera]['pose_to_pano'][0])
+#         xyz_camera = Tpc[:3, :3] @ xyz_lidar + Tpc[:3, 3:]
+#         ix, iy, iz = K @ xyz_camera
+#         ix, iy = ((ix / iz).astype(np.int16), (iy / iz).astype(np.int16))
 
-        proj_on_image = np.logical_and.reduce([
-            xyz_camera[2] > 0,
-            ix >= 0, ix < width,
-            iy >= 0, iy < height,
-        ])
+#         proj_on_image = np.logical_and.reduce([
+#             xyz_camera[2] > 0,
+#             ix >= 0, ix < width,
+#             iy >= 0, iy < height,
+#         ])
 
-        image = data[camera]['rgb'][0].permute(1, 2, 0).numpy()
-        rgb_lidar[proj_on_image] = image[iy[proj_on_image], ix[proj_on_image], :]
+#         image = data[camera]['rgb'][0].permute(1, 2, 0).numpy()
+#         rgb_lidar[proj_on_image] = image[iy[proj_on_image], ix[proj_on_image], :]
 
-    xyz_lidar = xyz_lidar.T
-    rgb_lidar = (rgb_lidar * 255.0).astype(np.uint8)
+#     xyz_lidar = xyz_lidar.T
+#     rgb_lidar = (rgb_lidar * 255.0).astype(np.uint8)
 
-    rgb_lidar_image = rgb_lidar.reshape(height_pano, width_pano, 3)
-    Image.fromarray(np.vstack([rgbs, panodepth_viz, rgb_lidar_image])).save(filename + '_frame.png')
-    print('Save to {}'.format(filename + '_frame.png'))
+#     rgb_lidar_image = rgb_lidar.reshape(height_pano, width_pano, 3)
+#     Image.fromarray(np.vstack([rgbs, panodepth_viz, rgb_lidar_image])).save(filename + '_frame.png')
+#     print('Save to {}'.format(filename + '_frame.png'))
 
-    # Save to pcd/ply
-    save_to_ply = False
-    if save_to_ply:
-        # preview on mac
-        HEADER = (
-            'ply',
-            'format ascii 1.0',
-            'element vertex {}'.format(len(xyz_lidar)),
-            'property float x',
-            'property float y',
-            'property float z',
-            'property uchar red',
-            'property uchar green',
-            'property uchar blue',
-            'end_header',
-        )
-        suffix = '_point_cloud.ply'
-        def write_func(f, x, y, z, r, g, b):
-            f.write(('{:.4f} ' * 6 + '\n').format(x, y, z, r, g, b))
-    else:
-        # open3d
-        HEADER = (
-            '# .PCD v0.7 - Point Cloud Data file format',
-            'VERSION 0.7',
-            'FIELDS x y z rgb',
-            'SIZE 4 4 4 4',
-            'TYPE F F F F',
-            'COUNT 1 1 1 1',
-            'WIDTH {}'.format(len(xyz_lidar)),
-            'HEIGHT 1',
-            'VIEWPOINT 0 0 0 1 0 0 0',
-            'POINTS {}'.format(len(xyz_lidar)),
-            'DATA ascii',
-        )
-        suffix = '_point_cloud.pcd'
-        def write_func(f, x, y, z, r, g, b):
-            rgb = b | g << 8 | r << 16
-            rgb = unpack('f', pack('i', rgb))[0]
-            f.write(('{} ' * 3 + '{}\n').format(x, y, z, rgb))
+#     # Save to pcd/ply
+#     save_to_ply = False
+#     if save_to_ply:
+#         # preview on mac
+#         HEADER = (
+#             'ply',
+#             'format ascii 1.0',
+#             'element vertex {}'.format(len(xyz_lidar)),
+#             'property float x',
+#             'property float y',
+#             'property float z',
+#             'property uchar red',
+#             'property uchar green',
+#             'property uchar blue',
+#             'end_header',
+#         )
+#         suffix = '_point_cloud.ply'
+#         def write_func(f, x, y, z, r, g, b):
+#             f.write(('{:.4f} ' * 6 + '\n').format(x, y, z, r, g, b))
+#     else:
+#         # open3d
+#         HEADER = (
+#             '# .PCD v0.7 - Point Cloud Data file format',
+#             'VERSION 0.7',
+#             'FIELDS x y z rgb',
+#             'SIZE 4 4 4 4',
+#             'TYPE F F F F',
+#             'COUNT 1 1 1 1',
+#             'WIDTH {}'.format(len(xyz_lidar)),
+#             'HEIGHT 1',
+#             'VIEWPOINT 0 0 0 1 0 0 0',
+#             'POINTS {}'.format(len(xyz_lidar)),
+#             'DATA ascii',
+#         )
+#         suffix = '_point_cloud.pcd'
+#         def write_func(f, x, y, z, r, g, b):
+#             rgb = b | g << 8 | r << 16
+#             rgb = unpack('f', pack('i', rgb))[0]
+#             f.write(('{} ' * 3 + '{}\n').format(x, y, z, rgb))
 
-    rgb_lidar = rgb_lidar.astype(np.uint32)
-    print('Save to {}'.format(filename + suffix))
-    with open(filename + suffix, 'w') as f:
-        f.write('\n'.join(HEADER) + '\n')
-        for (x, y, z), (r, g, b) in zip(xyz_lidar, rgb_lidar):
-            write_func(f, x, y, z, r, g, b)
+#     rgb_lidar = rgb_lidar.astype(np.uint32)
+#     print('Save to {}'.format(filename + suffix))
+#     with open(filename + suffix, 'w') as f:
+#         f.write('\n'.join(HEADER) + '\n')
+#         for (x, y, z), (r, g, b) in zip(xyz_lidar, rgb_lidar):
+#             write_func(f, x, y, z, r, g, b)

@@ -48,10 +48,14 @@ class PanoDepthDecoder(nn.Module, ABC):
         # TODO(soonminh): support more fusion modules or make it configurable for ablation study
         fusion_module = getattr(multicam_fusion, cfg.fusion_type, 'MultiDepthSweepFusion')
         positional_encoding = cfg_has(cfg, 'positional_encoding', 0)
+
+        # HACK: 이웃한 카메라끼리의 camera_fusion을 하기 위해 neigbors 설정함.
+        neighbors = cfg_has(cfg, 'neighbor_map', False)
+
         camera_fusion = []
         for i in range(self.num_scales + 1):
             shapes_scale = {cam: shapes[i] for cam, shapes in cfg.scale_and_shapes.items()}
-            camera_fusion.append(fusion_module(shapes_scale, view_attention, positional_encoding, depth_hypothesis))
+            camera_fusion.append(fusion_module(shapes_scale, view_attention, positional_encoding, depth_hypothesis, neighbors))
         self.camera_fusions = nn.ModuleList(camera_fusion)
 
         ### 2. Decoder

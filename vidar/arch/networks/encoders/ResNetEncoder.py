@@ -5,7 +5,6 @@ from abc import ABC
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.utils.model_zoo as model_zoo
 import torchvision.models as models
 
 RESNET_VERSIONS = {
@@ -14,6 +13,14 @@ RESNET_VERSIONS = {
     50: models.resnet50,
     101: models.resnet101,
     152: models.resnet152
+}
+
+RESNET_WEIGHTS = {
+    18: models.ResNet18_Weights.IMAGENET1K_V1,
+    34: models.ResNet34_Weights.IMAGENET1K_V1,
+    50: models.ResNet50_Weights.IMAGENET1K_V2,
+    101: models.ResNet101_Weights.IMAGENET1K_V2,
+    152: models.ResNet152_Weights.IMAGENET1K_V2,
 }
 
 ##################
@@ -61,7 +68,7 @@ def resnet_multi_input(num_layers, num_input_rgb, pretrained=True):
     model = ResNetMultiInput(block_type, block_channels, num_input_rgb)
 
     if pretrained:
-        loaded = model_zoo.load_url(models.resnet.model_urls['resnet{}'.format(num_layers)])
+        loaded = RESNET_VERSIONS[num_layers](weights=RESNET_WEIGHTS[num_layers]).state_dict()
         loaded['conv1.weight'] = torch.cat(
             [loaded['conv1.weight']] * num_input_rgb, 1) / num_input_rgb
         model.load_state_dict(loaded)

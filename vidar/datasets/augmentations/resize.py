@@ -112,6 +112,46 @@ def resize_npy_preserve(depth, shape, expand_dims=True):
     # Return resized depth map
     return np.expand_dims(depth, axis=2) if expand_dims else depth
 
+@iterate1
+def resize_angle_npy_preserve(depth, shape, expand_dims=True):
+    """
+    Resizes depth map preserving all valid depth pixels
+    Multiple downsampled points can be assigned to the same pixel.
+
+    Parameters
+    ----------
+    depth : np.Array
+        Depth map [h,w]
+    shape : Tuple
+        Output shape (H,W)
+
+    Returns
+    -------
+    depth : np.Array
+        Resized depth map [H,W,1]
+    """
+    # If a single number is provided, use resize ratio
+    if not is_seq(shape):
+        shape = tuple(int(s * shape) for s in depth.shape)
+    # Store dimensions and reshapes to single column
+    depth = np.squeeze(depth)
+    h, w = depth.shape
+    x = depth.reshape(-1)
+    # Create coordinate grid
+    uv = np.mgrid[:h, :w].transpose(1, 2, 0).reshape(-1, 2)
+    # Filters valid points
+    crd, val = uv, x
+    # Downsamples coordinates
+    crd[:, 0] = (crd[:, 0] * (shape[0] / h)).astype(np.int32)
+    crd[:, 1] = (crd[:, 1] * (shape[1] / w)).astype(np.int32)
+    # Filters points inside image
+    idx = (crd[:, 0] < shape[0]) & (crd[:, 1] < shape[1])
+    crd, val = crd[idx], val[idx]
+    # Creates downsampled depth image and assigns points
+    depth = np.zeros(shape)
+    depth[crd[:, 0], crd[:, 1]] = val
+    # Return resized depth map
+    return np.expand_dims(depth, axis=2) if expand_dims else depth
 
 @iterate1
 def resize_torch_preserve(depth, shape):

@@ -1,0 +1,161 @@
+FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-devel
+#FROM nvidia/cuda:11.3.1-devel-ubuntu20.04
+
+ENV PROJECT=panodepth-vidar
+#ENV LC_ALL=C.UTF-8
+#ENV LANG=C.UTF-8
+
+
+ENV TZ=Asia/Seoul
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -yq tzdata && \
+    ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
+    dpkg-reconfigure --frontend noninteractive tzdata
+
+RUN apt-get update && apt-get install -y \
+    python3-opencv \
+    git
+
+#ENV PYTHON_VERSION=3.8
+#ENV PYTORCH_VERSION=1.10.0+cu113
+#ENV TORCHVISION_VERSION=0.11.1+cu113
+#ENV CUDNN_VERSION=8.2.1.32-1+cuda11.3
+#ENV NCCL_VERSION=2.9.9-1+cuda11.3
+
+# Install basic libraries
+#ENV DEBIAN_FRONTEND=noninteractive
+#RUN apt-get update && apt-get install -y \
+#    build-essential cmake g++ git curl docker.io vim wget ca-certificates
+
+# Install python and pip
+#RUN apt-get install -y python${PYTHON_VERSION} python3-pip
+#RUN ln -s /usr/bin/python${PYTHON_VERSION} /usr/bin/python
+
+# Upgrade pip
+RUN pip install --upgrade pip
+
+# Install pytorch and torchvision
+#RUN pip install \
+#    torch==${PYTORCH_VERSION} \
+#    torchvision==${TORCHVISION_VERSION} \
+#    -f https://download.pytorch.org/whl/torch_stable.html
+
+# Install CUDNN and NCCL
+#RUN apt-get install -y \
+#    libcudnn8=${CUDNN_VERSION} \
+#    libnccl2=${NCCL_VERSION}
+
+# Install extra packages (apt-get)
+#RUN apt-get install -y ffmpeg
+
+# Install extra packages (pip)
+RUN pip install \
+    boto3==1.17.83 \
+    termcolor==1.1.0 \
+    wandb==0.16.2 \
+    opencv-python==4.9.0.80 \
+    flow_vis==0.1 \
+    matplotlib==3.3.4 \
+    pyyaml==6.0.1 \
+    fire \
+    pyquaternion==0.9.9 \
+    xarray==2024.6.0 \
+    diskcache==5.2.1 \
+    tenacity==7.0.0 \
+    awscli \
+    ref==0.0.2.2 \
+    positional-encodings==4.0.0 \
+    einops==0.3.2 \
+    scikit-image==0.19.3 \
+    timm==0.6.11
+
+    # pandas==1.1.5 \
+#    ftfy \
+#    regex \
+#    tqdm
+#pycocotools==2.0.2 \
+#timm==0.5.4 \
+
+
+# Install CamViz dependencies
+RUN pip install \
+    pygame \
+    PyOpenGL \
+    PyOpenGL-accelerate
+
+RUN apt-get update && apt-get install -y \
+    mesa-utils \
+    freeglut3-dev \
+    python-pygame \
+    libsdl2-2.0-0\
+    libgl1-mesa-dev\
+    libosmesa6-dev
+
+# Install PyTorch3D
+#RUN pip install pytorch3d
+RUN pip install "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.5"
+# Install CuPY
+# RUN pip install cupy
+
+# Install extras (should be moved to top when stable)
+#RUN pip install lpips wget scikit-image pyhocon dotmap path sacremoses filelock huggingface_hub
+#RUN pip install 'git+https://github.com/katsura-jp/pytorch-cosine-annealing-with-warmup'
+RUN pip install torch-scatter==2.1.2
+
+# (Optional) Install packages
+RUN pip install \
+    pythreejs \
+    ipywebrtc \
+    jupyter \
+    jupyterlab \
+    pycocotools \
+    nuscenes-devkit \
+    ipdb
+
+# Downgrade protobuf due to wandb issue
+RUN pip install protobuf==3.20.*
+#RUN pip install -U 'git+https://github.com/facebookresearch/fvcore'
+
+# (Optional) Add user
+ARG USER_ID
+ARG GROUP_ID
+ARG USER_NAME
+RUN apt-get install -y sudo
+RUN groupadd -r ${USER_NAME} -g ${GROUP_ID} && \
+    useradd -u ${USER_ID} -g ${GROUP_ID} -m -s /bin/bash ${USER_NAME} -p "$(openssl passwd -1 ${USER_NAME})" && \
+    usermod -aG sudo ${USER_NAME}
+
+RUN mkdir -p /data && chown -R ${USER_NAME}:${USER_NAME} /data
+RUN mkdir -p /data1 && chown -R ${USER_NAME}:${USER_NAME} /data1
+
+WORKDIR /home/${USER_NAME}/workspace
+RUN chown -R ${USER_NAME}:${USER_NAME} /home/${USER_NAME}/workspace
+
+# Install DGP (dataset utils)
+# WORKDIR /home/${USER_NAME}/workspace
+# RUN git clone https://github.com/VitorGuizilini-TRI/dgp.git
+# ENV PYTHONPATH="/home/${USER_NAME}/workspace/dgp:$PYTHONPATH"
+
+################################################################################################
+# Do not copy workspace, mounting workspace provides us more flexibility in the interactive mode
+#   e.g. modify code through remote ssh
+################################################################################################
+# Create workspace folder
+RUN mkdir -p /home/${USER_NAME}/workspace/experiments
+RUN mkdir -p /home/${USER_NAME}/workspace/${PROJECT}
+WORKDIR /home/${USER_NAME}/workspace/${PROJECT}
+# # Copy project to workspace folder
+COPY --chown=${USER_NAME}:${USER_NAME} . /home/${USER_NAME}/workspace/${PROJECT}
+
+# Set environment variables
+ENV PYTHONPATH="/home/${USER_NAME}/workspace/${PROJECT}:$PYTHONPATH"
+ENV PYTHONPATH="/home/${USER_NAME}/workspace/dgp:$PYTHONPATH"
+ENV PYTHONPATH="/home/${USER_NAME}/workspace/${PROJECT}/externals/camviz:$PYTHONPATH"
+
+# (Optional) Apply custom BASH Prompt to make it different from local prompt
+RUN echo "export PS1='(docker) \[\e[32m\](\D{%T})\[\e[0m\] \[\e[33m\]\u@\h:\w\[\e[0m\]\$ '" >> /home/$USER_NAME/.bashrc
+
+# Expose Port for jupyter (8888)
+# EXPOSE 8989
+
+# ENV PATH="/home/${USER_NAME}/.local/bin:$PATH"

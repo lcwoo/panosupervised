@@ -1,6 +1,6 @@
 default:
     folder: /data/disk/logs/checkpoints
-    s3_bucket: soonminh-checkpoints
+    # s3_bucket: soonminh-checkpoints
     save_code: True
     keep_top: 5
 default_local:

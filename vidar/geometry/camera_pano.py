@@ -139,7 +139,7 @@ class PanoCamera(Camera):
         # points = torch.matmul(self.Pwc(from_world), cat_channel_ones(points, 1))
 
         if from_world:
-            Xc = self.Twc * points
+            Xc = self.Twc.to(device) * points
         else:
             Xc = points
 
@@ -148,7 +148,7 @@ class PanoCamera(Camera):
         Xp_z = Xc[:, 2] / Xp_rho * self.rho
 
         # Project 3D points onto the camera image plane
-        points = self.K.bmm(
+        points = self.K.to(device).bmm(
             torch.stack([Xp_pi, Xp_z, torch.ones_like(Xp_pi, device=device), torch.ones_like(Xp_pi, device=device)], axis=1))
 
 

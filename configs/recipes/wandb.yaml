@@ -1,5 +1,5 @@
 default:
     folder: /data/disk/logs
-    entity: soonminh129
-    project: vidar_panodepth_220610
+    entity: leecw0717
+    project: panodepth
     num_validation_logs: 5

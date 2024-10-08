@@ -249,7 +249,7 @@ def setup_metrics(cfg):
         'panodepth': PanoDepthEvaluation,
     }
 
-    available_tasks = [key for key in cfg.__dict__.keys() if key is not 'tasks']
+    available_tasks = [key for key in cfg.__dict__.keys() if key != 'tasks']
     requested_tasks = cfg_has(cfg, 'tasks', available_tasks)
     tasks = [task for task in available_tasks if task in requested_tasks and task in methods]
 

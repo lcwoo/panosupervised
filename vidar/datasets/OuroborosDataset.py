@@ -18,13 +18,28 @@ from vidar.utils.types import is_str
 
 def load_from_file(filename, *keys):
     """Load data cache from a file"""
-    if is_str(keys):
-        keys = [keys]
+    # Check if single string is provided
+    if len(keys) == 1 and isinstance(keys[0], list):
+        keys = keys[0]  # Unpack the list to individual keys
+
     data = np.load(filename, allow_pickle=True)
-    out = [data[k] for k in keys]
-    if len(out[0].shape) == 0:
+
+    # Initialize output list
+    out = []
+    for k in keys:
+        try:
+            out.append(data[k])
+        except KeyError:
+            print(f"Key '{k}' not found in the file.")
+            out.append(None)
+
+    # Check if all outputs are None, indicating the keys were not found
+    if all(o is None for o in out):
         out = None
-    return out[0] if len(keys) == 1 else out
+    elif len(out) == 1:
+        out = out[0]  # Return the single item if only one key was requested
+
+    return out
 
 
 def save_to_file(filename, data_dict):
@@ -53,30 +68,42 @@ def generate_proj_maps(camera, Xw, Xl, shape):
         Rendered depth image
     """
     assert len(shape) == 2, 'Shape needs to be 2-tuple.'
+
+    #HACK: cuda로 실행할 수있게 수정
     # Move point cloud to the camera's (C) reference frame from the world (W)
-    Xc = camera.p_cw * Xw
+    ones = torch.ones(Xw.shape[0], 1, dtype=torch.float64).to(torch.device('cuda'))
+    homogeneous_Xw = torch.cat((Xw, ones), dim=1)
+
+    camera_pose = torch.tensor(camera.p_cw.matrix, dtype=torch.float64).to(torch.device('cuda'))
+    Xc = torch.matmul(camera_pose, homogeneous_Xw.T)[:3, :].T
     # Project the points as if they were in the camera's frame of reference
-    uv = Camera(K=camera.K).project(Xc).astype(int)
+    uv = Camera(K=camera.K).project_tensor(Xc).long()
+    
     # Colorize the point cloud based on depth
     z_c = Xc[:, 2]
 
+    # order = torch.argsort(z_c, descending=True)
+    # uv = uv[order]
+    # z_c = z_c[order]
+
     # Create an empty image to overlay
     H, W = shape
-    proj_depth = np.zeros((H, W), dtype=np.float32)
-    in_view = np.logical_and.reduce([(uv >= 0).all(axis=1), uv[:, 0] < W, uv[:, 1] < H, z_c > 0])
+    proj_depth = torch.zeros((H, W), dtype=torch.float64).to(uv.device)
+    in_view = (uv >= 0).all(dim=1) & (uv[:, 0] < W) & (uv[:, 1] < H) & (z_c > 0)
     uv, z_c = uv[in_view], z_c[in_view]
     proj_depth[uv[:, 1], uv[:, 0]] = z_c
 
     # Calculate yaw angle in LiDAR coordinate
     xx = Xl[in_view][:, 0]
     yy = Xl[in_view][:, 1]
-    yaw = np.arctan2(yy, xx + 1e-6)
 
-    # HACK(soonminh): Reverse yaw to make it clockwise and add pi to start from backward
-    yaw = -yaw + np.pi
+    yaw = torch.atan2(yy, xx + 1e-6)
+    # yaw = yaw[order]
 
-    proj_angle = np.zeros((H, W), dtype=np.float32)
+    yaw = yaw.to(torch.float64)
+    proj_angle = torch.zeros((H, W), dtype=torch.float64, device=uv.device)
     proj_angle[uv[:, 1], uv[:, 0]] = yaw
+    
     return proj_depth, proj_angle
 
 
@@ -323,11 +350,18 @@ class OuroborosDataset(BaseDataset):
         except:
             pass
         # Calculate world points if needed
+        #HACK: cuda로 실행할 수 있게 수정
         if world_points is None:
             # Get lidar information
-            lidar_pose = self.get_current_or_context('pose', depth_idx, context)
+            lidar_pose = torch.from_numpy(self.get_current_or_context('pose', depth_idx, context).matrix).to(torch.device('cuda'))
+
             lidar_points = self.get_current_or_context('point_cloud', depth_idx, context)
-            world_points = lidar_pose * lidar_points
+            lidar_points = torch.from_numpy(lidar_points).float().to(torch.device('cuda'))
+
+            ones = torch.ones((lidar_points.size(0), 1)).to(torch.device('cuda'))
+            homogeneous_lidar_points = torch.cat((lidar_points, ones), dim=1).to(dtype=torch.float64)
+            world_points = lidar_pose @ homogeneous_lidar_points.T
+            world_points = world_points[:3, :].T
 
         # Create camera
         camera = self.create_camera(camera_idx, context)
@@ -335,6 +369,9 @@ class OuroborosDataset(BaseDataset):
         # Generate depth maps
         depth, angle  = generate_proj_maps(camera, world_points, lidar_points, image_shape)
         # Save depth map
+        depth = depth.detach().cpu().numpy()
+        angle = angle.detach().cpu().numpy()
+        
         save_to_file(filename_depth, {'depth': depth, 'angle': angle})
         # Return depth
         return depth, angle
@@ -457,7 +494,7 @@ class OuroborosDataset(BaseDataset):
             if self.masks_path is not None:
                 sample.update({
                     'mask': read_image(os.path.join(
-                        self.masks_path, 'camera_%02d.png' % self.cameras[i]))
+                        '/home/chungwoo/workspace/panodepth-vidar/data/masks/ddad', '%02d.png' % self.cameras[i]))
                 })
 
             # If depth is returned

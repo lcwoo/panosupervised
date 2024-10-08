@@ -114,6 +114,7 @@ class FeatTransform(nn.Module):
 
         ref_coords = self.compute_grid(in_intrinsic, out_intrinsic, relative_pose)
         transformed_feat = F.grid_sample(x, ref_coords, padding_mode='zeros', align_corners=True)
+        
         return transformed_feat
 
 
@@ -145,4 +146,7 @@ class MultiDepthTransform(nn.Module):
     def forward(self, x, meta):
         # Apply transformations for given multiple depth values
         feats_list = [T(x, meta) for T in self.transforms]
+        # stacked_feats = torch.stack(feats_list, dim=2)
         return feats_list
+        # return feats_list, stacked_feats
+        # return stacked_feats

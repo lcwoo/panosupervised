@@ -39,6 +39,8 @@ def allow_multicam_input(func):
     return inner
 
 
+from vidar.arch.networks.encoders.ConvolutionalVisionTransformerEncoder import ConvolutionalVisionTransformerEncoder
+
 class MultiCamDepthNet(BaseNet, ABC):
     """
     Multi-camera Depth network
@@ -48,7 +50,6 @@ class MultiCamDepthNet(BaseNet, ABC):
     cfg : Config
         Configuration with parameters
     """
-
     def __init__(self, cfg):
         super().__init__(cfg)
 
@@ -73,21 +74,35 @@ class MultiCamDepthNet(BaseNet, ABC):
 
                 e_shape = cfg_has(cfg_per_cam, 'ref_shape', (384, 640))
                 scale_and_shapes[camera] = [
-                    (in_scale, (ch, e_shape[0]//in_scale, e_shape[1]//in_scale),
-                     in_scale * out_scale, (ch, out_shape[0]//in_scale, out_shape[1]//in_scale))
-                        for in_scale, ch in zip(encoder_module.reduction, encoder_module.num_ch_enc)]
+                    (in_scale, (ch, e_shape[0] // in_scale, e_shape[1] // in_scale),
+                     in_scale * out_scale, (ch, out_shape[0] // in_scale, out_shape[1] // in_scale))
+                    for in_scale, ch in zip(encoder_module.reduction, encoder_module.num_ch_enc)
+                ]
 
             cfg.decoder.scale_and_shapes = scale_and_shapes
+
         else:
             self.input_cameras = cfg.input_cameras
+            encoder_type = cfg.encoder.get('type', 'ResNetEncoder')
+            
+            # Shared encoder
+            if encoder_type == 'MobileNetEncoder':
+                file = cfg_has(cfg.encoder, 'file', 'encoders/MobileNetEncoder')
+                folder, name = get_folder_name(file, 'networks')
+                encoder_module = load_class(name, folder)(cfg.encoder)
+            elif encoder_type == 'ResNetEncoder':
+                import ipdb; ipdb.set_trace()
+                file = cfg_has(cfg.encoder, 'file', 'encoders/ResNetEncoder')
+                folder, name = get_folder_name(file, 'networks')
+                encoder_module = load_class(name, folder)(cfg.encoder)
+            elif encoder_type == 'ConvolutionalVisionTransformerEncoder':  # 추가된 부분
+                encoder_module = ConvolutionalVisionTransformerEncoder(cfg.encoder)
+            else:
+                raise NotImplementedError(f"Unknown encoder type: {encoder_type}")
 
-            file = cfg_has(cfg.encoder, 'file', 'encoders/ResNetEncoder')
-            folder, name = get_folder_name(file, 'networks')
-            encoder_module = load_class(name, folder)(cfg.encoder)
             self.networks['encoder'] = encoder_module
             cfg.decoder.num_ch_enc = encoder_module.num_ch_enc
 
-            # HACK(soonminh)
             if 'PanoDepthDecoder' in cfg.decoder.file or 'PanoTransformerDecoder' in cfg.decoder.file:
                 e_shape = cfg_has(cfg.encoder, 'ref_shape', (384, 640))
                 d_shape = cfg_has(cfg.decoder, 'ref_shape', (256, 2048))
@@ -98,9 +113,10 @@ class MultiCamDepthNet(BaseNet, ABC):
                 scale_and_shapes = dict()
                 for camera in self.input_cameras:
                     scale_and_shapes[camera] = [
-                    (in_scale, (ch, e_shape[0]//in_scale, e_shape[1]//in_scale),
-                     in_scale * out_scale, (ch, out_shape[0]//in_scale, out_shape[1]//in_scale))
-                        for in_scale, ch in zip(encoder_module.reduction, encoder_module.num_ch_enc)]
+                        (in_scale, (ch, e_shape[0] // in_scale, e_shape[1] // in_scale),
+                         in_scale * out_scale, (ch, out_shape[0] // in_scale, out_shape[1] // in_scale))
+                        for in_scale, ch in zip(encoder_module.reduction, encoder_module.num_ch_enc)
+                    ]
 
                 cfg.decoder.scale_and_shapes = scale_and_shapes
 
@@ -123,6 +139,7 @@ class MultiCamDepthNet(BaseNet, ABC):
         else:
             raise NotImplementedError
 
+
     @allow_multicam_input
     def forward(self, batch, return_logs=False):
         """Network forward pass"""
@@ -130,15 +147,16 @@ class MultiCamDepthNet(BaseNet, ABC):
         # TODO(soonminh): check the ability of decoder to learn depth prediction
         #                   from dynamic multi-camera configuration
         #                   (e.g. from multiple datasets simultaneously)
-        # decoder_required_keys = ('intrinsics', 'pose_to_pano')
-        decoder_required_keys = ('rays_embedding',)
+        decoder_required_keys = ('intrinsics', 'pose_to_pano')
+        # decoder_required_keys = ('rays_embedding',)
+
         meta_info = {}
         for cam, sample in batch.items():
             if not cam.startswith('camera'):
                 continue
-            meta_info[cam] = {k: sample[k] for k in decoder_required_keys}
-            # meta_info[cam] = {k: sample[k] if 'pano' not in cam else sample[k]
-            #                     for k in decoder_required_keys if k in sample}
+            # meta_info[cam] = {k: sample[k] for k in decoder_required_keys}
+            meta_info[cam] = {k: sample[k] if 'pano' not in cam else sample[k]
+                                for k in decoder_required_keys if k in sample}
 
         log_images = {}
         if 'encoders' in self.networks:

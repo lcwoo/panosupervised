@@ -46,7 +46,9 @@ class RMSELoss(nn.Module, ABC):
         self.criterion = nn.MSELoss(reduction='none')
 
     def forward(self, pred, gt):
-        return torch.sqrt(self.criterion(pred, gt))
+        mse_loss = self.criterion(pred, gt)
+        #HACK (chungwoo) Adding a small constant, epsilon, to the loss to avoid NaN or Inf values.
+        return torch.sqrt(mse_loss + 1e-8)
 
 
 class L1LogLoss(nn.Module, ABC):

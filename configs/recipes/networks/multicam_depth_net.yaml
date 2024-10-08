@@ -140,3 +140,131 @@ panodepth_ddad_resnet_shared:
         downsample: False
         depth_focal: 1.0
         positional_encoding: 0
+
+panodepth_ddad_cvt:
+    file: depth/MultiCamDepthNet
+    min_depth: 1.0
+    max_depth: 200.0
+    scale_invdepth: inverse
+
+    encoders:
+        camera_01:
+            file: encoders/ConvolutionalVisionTransformerEncoder
+            num_stages: 4
+            embed_dims: [64, 128, 256, 512]
+            num_heads: [1, 2, 4, 8]
+            depths: [1, 2, 4, 1]
+            patch_sizes: [7, 3, 3, 3]
+            patch_strides: [4, 2, 2, 2]
+            patch_paddings: [3, 1, 1, 1]
+            mlp_ratios: [4.0, 4.0, 4.0, 4.0]
+            drop_rate: 0.1
+            attn_drop_rate: 0.1
+            drop_path_rate: 0.1
+            qkv_bias: True
+            cls_token: False
+            input_mean: [0.485, 0.456, 0.406]
+            input_std: [0.229, 0.224, 0.225]
+            ref_shape: [384, 640]
+        camera_05:
+            file: encoders/ConvolutionalVisionTransformerEncoder
+            num_stages: 4
+            embed_dims: [64, 128, 256, 512]
+            num_heads: [1, 2, 4, 8]
+            depths: [1, 2, 4, 1]
+            patch_sizes: [7, 3, 3, 3]
+            patch_strides: [4, 2, 2, 2]
+            patch_paddings: [3, 1, 1, 1]
+            mlp_ratios: [4.0, 4.0, 4.0, 4.0]
+            drop_rate: 0.1
+            attn_drop_rate: 0.1
+            drop_path_rate: 0.1
+            qkv_bias: True
+            cls_token: False
+            input_mean: [0.485, 0.456, 0.406]
+            input_std: [0.229, 0.224, 0.225]
+            ref_shape: [384, 640]
+        camera_06:
+            file: encoders/ConvolutionalVisionTransformerEncoder
+            num_stages: 4
+            embed_dims: [64, 128, 256, 512]
+            num_heads: [1, 2, 4, 8]
+            depths: [1, 2, 4, 1]
+            patch_sizes: [7, 3, 3, 3]
+            patch_strides: [4, 2, 2, 2]
+            patch_paddings: [3, 1, 1, 1]
+            mlp_ratios: [4.0, 4.0, 4.0, 4.0]
+            drop_rate: 0.1
+            attn_drop_rate: 0.1
+            drop_path_rate: 0.1
+            qkv_bias: True
+            cls_token: False
+            input_mean: [0.485, 0.456, 0.406]
+            input_std: [0.229, 0.224, 0.225]
+            ref_shape: [384, 640]
+        camera_07:
+            file: encoders/ConvolutionalVisionTransformerEncoder
+            num_stages: 4
+            embed_dims: [64, 128, 256, 512]
+            num_heads: [1, 2, 4, 8]
+            depths: [1, 2, 4, 1]
+            patch_sizes: [7, 3, 3, 3]
+            patch_strides: [4, 2, 2, 2]
+            patch_paddings: [3, 1, 1, 1]
+            mlp_ratios: [4.0, 4.0, 4.0, 4.0]
+            drop_rate: 0.1
+            attn_drop_rate: 0.1
+            drop_path_rate: 0.1
+            qkv_bias: True
+            cls_token: False
+            input_mean: [0.485, 0.456, 0.406]
+            input_std: [0.229, 0.224, 0.225]
+            ref_shape: [384, 640]
+        camera_08:
+            file: encoders/ConvolutionalVisionTransformerEncoder
+            num_stages: 4
+            embed_dims: [64, 128, 256, 512]
+            num_heads: [1, 2, 4, 8]
+            depths: [1, 2, 4, 1]
+            patch_sizes: [7, 3, 3, 3]
+            patch_strides: [4, 2, 2, 2]
+            patch_paddings: [3, 1, 1, 1]
+            mlp_ratios: [4.0, 4.0, 4.0, 4.0]
+            drop_rate: 0.1
+            attn_drop_rate: 0.1
+            drop_path_rate: 0.1
+            qkv_bias: True
+            cls_token: False
+            input_mean: [0.485, 0.456, 0.406]
+            input_std: [0.229, 0.224, 0.225]
+            ref_shape: [384, 640]
+        camera_09:
+            file: encoders/ConvolutionalVisionTransformerEncoder
+            num_stages: 4
+            embed_dims: [64, 128, 256, 512]
+            num_heads: [1, 2, 4, 8]
+            depths: [1, 2, 4, 1]
+            patch_sizes: [7, 3, 3, 3]
+            patch_strides: [4, 2, 2, 2]
+            patch_paddings: [3, 1, 1, 1]
+            mlp_ratios: [4.0, 4.0, 4.0, 4.0]
+            drop_rate: 0.1
+            attn_drop_rate: 0.1
+            drop_path_rate: 0.1
+            qkv_bias: True
+            cls_token: False
+            input_mean: [0.485, 0.456, 0.406]
+            input_std: [0.229, 0.224, 0.225]
+            ref_shape: [384, 640]
+
+    decoder:
+        file: decoders/PanoDepthDecoder
+        fusion_type: MultiDepthSweepFusion
+        ref_shape: [256, 2048]
+        out_shape: [256, 2048]
+        use_skips: True
+        activation: sigmoid
+        num_ch_out: 1
+        downsample: False
+        depth_focal: 1.0
+        positional_encoding: 0
